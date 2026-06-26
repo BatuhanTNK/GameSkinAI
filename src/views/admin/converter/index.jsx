@@ -4,11 +4,12 @@
  * Tüm state bu sayfada tutulur ve alt bileşenlere aktarılır.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from 'contexts/AuthContext';
 import { useConversions } from 'hooks/useConversions';
-import { analyzeAndConvert, fileToBase64 } from 'lib/gemini';
-import { getThemeBySlug } from 'lib/themes';
+import { analyzeAndConvert, fileToBase64, generateImage } from 'lib/gemini';
+import { THEMES, getThemeBySlug } from 'lib/themes';
+import { uploadImage, uploadBase64Image, fetchThemes } from 'lib/supabase';
 import {
   CONVERSION_STATUS,
   RATE_LIMIT_SECONDS,
@@ -26,6 +27,32 @@ import { MdAutoAwesome } from 'react-icons/md';
 export default function Converter() {
   const { user } = useAuth();
   const { addConversion } = useConversions();
+
+  // Dinamik temalar state
+  const [themes, setThemes] = useState([]);
+
+  useEffect(() => {
+    async function loadThemes() {
+      try {
+        const dbThemes = await fetchThemes();
+        if (dbThemes && dbThemes.length > 0) {
+          const formattedThemes = dbThemes.map((t) => ({
+            ...t,
+            color: t.color || 'purple',
+            bgGradient: t.bgGradient || 'from-purple-500 to-violet-600',
+            icon: t.icon || 'FaUserAstronaut',
+          }));
+          setThemes(formattedThemes);
+        } else {
+          setThemes(THEMES);
+        }
+      } catch (err) {
+        console.error('Tema yükleme hatası, statik temalara dönülüyor:', err);
+        setThemes(THEMES);
+      }
+    }
+    loadThemes();
+  }, []);
 
   // Form state
   const [selectedTheme, setSelectedTheme] = useState(null);
@@ -124,7 +151,7 @@ export default function Converter() {
       return;
     }
 
-    const theme = getThemeBySlug(selectedTheme);
+    const theme = themes.find((t) => t.slug === selectedTheme) || getThemeBySlug(selectedTheme);
     if (!theme) {
       showToast('Geçersiz tema seçimi.', 'error');
       return;
@@ -136,16 +163,41 @@ export default function Converter() {
     lastRequestTime.current = Date.now();
 
     try {
-      // 1. Görüntüyü base64'e çevir
+      // 1. Görüntüyü base64'e çevir (Gemini analizi için)
       const { base64, mimeType } = await fileToBase64(uploadedFile);
 
-      // 2. Gemini API'ye gönder
+      // 2. Orijinal fotoğrafı Supabase Storage'a yükle
+      let originalImageUrl = previewUrl;
+      try {
+        originalImageUrl = await uploadImage(uploadedFile);
+      } catch (err) {
+        console.error('Orijinal görsel yükleme hatası:', err);
+      }
+
+      // 3. Gemini API'ye gönder (Açıklama üret)
       const aiResult = await analyzeAndConvert(base64, mimeType, theme.prompt);
 
-      // 3. Supabase'e kaydet
+      // 4. Görsel üretimi için prompt hazırla
+      let resultImageUrl = '';
+      const imagePrompt = `${theme.label} character based on: ${aiResult.description}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`;
+
+      try {
+        const resultImageBase64 = await generateImage(imagePrompt);
+        // 5. Üretilen görseli Supabase'e yükle
+        resultImageUrl = await uploadBase64Image(resultImageBase64, 'image/jpeg');
+      } catch (err) {
+        console.warn('Görsel üretimi veya Storage yüklemesi başarısız oldu, doğrudan URL yedeklemesi (Pollinations AI) yapılıyor:', err);
+        // Tarayıcı tarafındaki CORS/403 engellerini aşmak için doğrudan Pollinations URL'ini kullan
+        const seed = Math.floor(Math.random() * 1000000);
+        resultImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=512&height=512&nologo=true&seed=${seed}`;
+      }
+
+      // 6. Supabase'e kaydet
       const conversionData = {
         theme_slug: theme.slug,
         theme_label: theme.label,
+        original_image_url: originalImageUrl,
+        result_image_url: resultImageUrl,
         result_description: aiResult.description,
         status: CONVERSION_STATUS.DONE,
       };
@@ -155,10 +207,9 @@ export default function Converter() {
 
       if (saveError) {
         console.error('Supabase kayıt hatası:', saveError);
-        // Kayıt başarısız olsa bile sonucu göster
       }
 
-      // 4. Sonucu göster
+      // 7. Sonucu göster
       const displayResult = savedConversion || {
         ...conversionData,
         description: aiResult.description,
@@ -241,6 +292,7 @@ export default function Converter() {
             selectedTheme={selectedTheme}
             onSelect={handleThemeSelect}
             disabled={isConverting}
+            themes={themes}
           />
         </div>
 

@@ -70,10 +70,12 @@ const COLOR_MAP = {
  * @param {Function} props.onSelect - Tema seçim callback'i
  * @param {boolean} props.disabled - Seçim devre dışı mı
  */
-export default function ThemeSelector({ selectedTheme, onSelect, disabled }) {
+export default function ThemeSelector({ selectedTheme, onSelect, disabled, themes = [] }) {
+  const themesToDisplay = themes && themes.length > 0 ? themes : THEMES;
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {THEMES.map((theme) => {
+      {themesToDisplay.map((theme) => {
         const IconComponent = ICON_MAP[theme.icon];
         const colors = COLOR_MAP[theme.color] || COLOR_MAP.purple;
         const isSelected = selectedTheme === theme.slug;
@@ -150,9 +152,11 @@ ThemeSelector.propTypes = {
   selectedTheme: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
+  themes: PropTypes.array,
 };
 
 ThemeSelector.defaultProps = {
   selectedTheme: null,
   disabled: false,
+  themes: [],
 };

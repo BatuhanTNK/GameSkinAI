@@ -24,9 +24,8 @@ export const UPLOAD_LIMITS = {
 /** Rate limiting - saniye cinsinden */
 export const RATE_LIMIT_SECONDS = 30;
 
-/** Gemini API ayarları */
 export const GEMINI_CONFIG = {
-  MODEL: 'gemini-1.5-flash',
+  MODEL: 'gemini-2.5-flash',
   API_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/models',
 };
 

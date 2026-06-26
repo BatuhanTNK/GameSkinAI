@@ -142,6 +142,38 @@ export default function ConversionResult({
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * AI tarafından üretilen görseli indirir.
+   */
+  const handleDownloadImage = async () => {
+    if (!result.result_image_url) return;
+    try {
+      if (result.result_image_url.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = result.result_image_url;
+        link.download = `gameskin_${result.theme_slug || 'result'}_${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      
+      const response = await fetch(result.result_image_url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `gameskin_${result.theme_slug || 'result'}_${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Görsel indirme hatası, yeni sekmede açılıyor:', err);
+      window.open(result.result_image_url, '_blank');
+    }
+  };
+
   return (
     <Card extra="overflow-hidden">
       {/* Başlık alanı - gradient bar */}
@@ -171,7 +203,47 @@ export default function ConversionResult({
 
       {/* Sonuç içeriği */}
       <div className="p-6">
-        <div className="mb-4 rounded-xl bg-lightPrimary p-4 dark:bg-navy-700">
+        {/* Görsel Karşılaştırma Alanı */}
+        {(result.original_image_url || result.result_image_url) && (
+          <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* Orijinal Görsel */}
+            {result.original_image_url && (
+              <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-800">
+                <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Orijinal Fotoğraf
+                </span>
+                <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
+                  <img
+                    src={result.original_image_url}
+                    alt="Orijinal"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Üretilen Görsel */}
+            {result.result_image_url && (
+              <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-800">
+                <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-brand-500">
+                  Yapay Zeka Karakteri
+                </span>
+                <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
+                  <img
+                    src={result.result_image_url}
+                    alt="Dönüştürülmüş Karakter"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mb-6 rounded-xl bg-lightPrimary p-4 dark:bg-navy-700">
+          <h5 className="mb-2 text-sm font-bold text-navy-700 dark:text-white">
+            Karakter Açıklaması:
+          </h5>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-navy-700 dark:text-gray-300">
             {result.result_description || result.description}
           </p>
@@ -179,13 +251,24 @@ export default function ConversionResult({
 
         {/* Aksiyon butonları */}
         <div className="flex flex-wrap gap-3">
+          {result.result_image_url && (
+            <button
+              type="button"
+              onClick={handleDownloadImage}
+              className="flex items-center gap-2 rounded-xl bg-green-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-green-600 hover:shadow-lg"
+            >
+              <MdDownload className="h-5 w-5" />
+              Görseli İndir
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleDownload}
             className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-brand-600 hover:shadow-lg"
           >
             <MdDownload className="h-5 w-5" />
-            İndir (.txt)
+            Açıklamayı İndir (.txt)
           </button>
 
           <button
@@ -210,6 +293,8 @@ ConversionResult.propTypes = {
     created_at: PropTypes.string,
     theme_label: PropTypes.string,
     theme_slug: PropTypes.string,
+    original_image_url: PropTypes.string,
+    result_image_url: PropTypes.string,
   }),
   isConverting: PropTypes.bool,
   onRetry: PropTypes.func.isRequired,

@@ -72,3 +72,107 @@ export const supabase = createClient(
 
 /** Supabase'in doğru yapılandırılıp yapılandırılmadığını gösterir */
 export const isSupabaseConfigured = isConfigured;
+
+/**
+ * Orijinal dosyayı Supabase Storage'a yükler.
+ * @param {File} file - Yüklenecek dosya
+ * @param {string} bucketName - Storage bucket adı
+ * @returns {Promise<string>} Resim public URL'i veya base64 data URL
+ */
+export async function uploadImage(file, bucketName = 'conversions') {
+  if (!isSupabaseConfigured) {
+    // Demo/offline mod fallback: base64'e çevirip döndür
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const fileExt = file.name.split('.').pop() || 'jpg';
+  const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  try {
+    const { error } = await supabase.storage
+      .from(bucketName)
+      .upload(filePath, file);
+
+    if (error) {
+      console.error('Supabase Storage yükleme hatası, yerel URL kullanılıyor:', error);
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Storage yükleme hatası:', err);
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+/**
+ * Base64 formatındaki AI görselini Supabase Storage'a yükler.
+ * @param {string} base64Str - Saf base64 string
+ * @param {string} mimeType - Görüntünün MIME tipi
+ * @param {string} bucketName - Storage bucket adı
+ * @returns {Promise<string>} Yüklenen resmin public URL'i
+ */
+export async function uploadBase64Image(base64Str, mimeType = 'image/jpeg', bucketName = 'conversions') {
+  if (!isSupabaseConfigured) {
+    return `data:${mimeType};base64,${base64Str}`;
+  }
+
+  try {
+    const byteCharacters = atob(base64Str);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    const fileExt = mimeType.split('/')[1] || 'jpeg';
+    const file = new File([blob], `result-${Date.now()}.${fileExt}`, { type: mimeType });
+
+    return await uploadImage(file, bucketName);
+  } catch (err) {
+    console.error('Base64 resmi dönüştürme ve yükleme hatası:', err);
+    return `data:${mimeType};base64,${base64Str}`;
+  }
+}
+
+/**
+ * Veritabanındaki 'themes' tablosundan aktif temaları çeker.
+ * @returns {Promise<Array>} Tema listesi
+ */
+export async function fetchThemes() {
+  if (!isSupabaseConfigured) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('themes')
+      .select('*')
+      .eq('active', true);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Temalar veritabanından çekilemedi:', err);
+    return [];
+  }
+}
+

@@ -133,6 +133,17 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
         </span>
       </div>
 
+      {/* Görsel Önizleme */}
+      {conversion.result_image_url && (
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100 dark:bg-navy-900 border-b border-gray-100 dark:border-white/5">
+          <img
+            src={conversion.result_image_url}
+            alt={conversion.theme_label}
+            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+          />
+        </div>
+      )}
+
       {/* İçerik */}
       <div className="p-5">
         <p className="mb-4 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
@@ -208,6 +219,8 @@ HistoryCard.propTypes = {
     result_description: PropTypes.string,
     status: PropTypes.string,
     created_at: PropTypes.string,
+    original_image_url: PropTypes.string,
+    result_image_url: PropTypes.string,
   }).isRequired,
   onDelete: PropTypes.func.isRequired,
   onView: PropTypes.func,

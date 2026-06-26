@@ -41,6 +41,10 @@ export default function History() {
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
 
+  // Modal State'leri
+  const [selectedConversion, setSelectedConversion] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   /**
    * Toast bildirim gösterir.
    */
@@ -67,18 +71,8 @@ export default function History() {
    * @param {Object} conversion - Dönüşüm verisi
    */
   const handleView = (conversion) => {
-    // İleride detay modal açılabilir
-    // Şimdilik sonuç açıklamasını indirme olarak kullan
-    const content = `GameSkinAI - ${conversion.theme_label} Sonucu\n${'='.repeat(50)}\n\n${conversion.result_description || 'Açıklama mevcut değil.'}`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `gameskinai_${conversion.theme_slug}_${conversion.id.substring(0, 8)}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setSelectedConversion(conversion);
+    setIsModalOpen(true);
   };
 
   return (
@@ -189,6 +183,151 @@ export default function History() {
               onView={handleView}
             />
           ))}
+        </div>
+      )}
+
+      {/* Detay Modalı */}
+      {isModalOpen && selectedConversion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl overflow-hidden rounded-[20px] bg-white shadow-2xl dark:bg-navy-800 transition-all duration-300 max-h-[90vh] flex flex-col">
+            {/* Modal Başlık */}
+            <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-white/10">
+              <div>
+                <h3 className="text-xl font-bold text-navy-700 dark:text-white">
+                  {selectedConversion.theme_label} Dönüşümü
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {new Intl.DateTimeFormat('tr-TR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(selectedConversion.created_at))}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal İçerik (Scrollable) */}
+            <div className="overflow-y-auto p-6 flex-1">
+              {/* Resim Karşılaştırma */}
+              {(selectedConversion.original_image_url || selectedConversion.result_image_url) && (
+                <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                  {selectedConversion.original_image_url && (
+                    <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
+                      <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        Orijinal Fotoğraf
+                      </span>
+                      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
+                        <img
+                          src={selectedConversion.original_image_url}
+                          alt="Orijinal"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedConversion.result_image_url && (
+                    <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
+                      <span className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-500">
+                        Yapay Zeka Karakteri
+                      </span>
+                      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
+                        <img
+                          src={selectedConversion.result_image_url}
+                          alt="AI Karakteri"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Açıklama */}
+              <div className="rounded-xl bg-lightPrimary p-4 dark:bg-navy-700">
+                <h5 className="mb-2 text-sm font-bold text-navy-700 dark:text-white">
+                  Karakter Açıklaması:
+                </h5>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-navy-700 dark:text-gray-300">
+                  {selectedConversion.result_description}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Butonlar */}
+            <div className="flex flex-wrap gap-3 border-t border-gray-100 p-6 dark:border-white/10 bg-gray-50 dark:bg-navy-900/30">
+              {selectedConversion.result_image_url && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const url = selectedConversion.result_image_url;
+                      if (url.startsWith('data:')) {
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `gameskin_${selectedConversion.theme_slug || 'result'}_${selectedConversion.id.substring(0, 8)}.jpg`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        return;
+                      }
+                      const response = await fetch(url);
+                      const blob = await response.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = blobUrl;
+                      link.download = `gameskin_${selectedConversion.theme_slug || 'result'}_${selectedConversion.id.substring(0, 8)}.jpg`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(blobUrl);
+                    } catch (err) {
+                      window.open(selectedConversion.result_image_url, '_blank');
+                    }
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-green-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-green-600"
+                >
+                  Görseli İndir
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const content = `GameSkinAI - ${selectedConversion.theme_label} Sonucu\n${'='.repeat(50)}\n\n--- Karakter Açıklaması ---\n\n${selectedConversion.result_description}`;
+                  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `gameskinai_${selectedConversion.theme_slug}_${selectedConversion.id.substring(0, 8)}.txt`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-brand-600"
+              >
+                Açıklamayı İndir (.txt)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="ml-auto rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-navy-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:bg-navy-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
