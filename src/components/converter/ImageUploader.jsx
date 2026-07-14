@@ -4,11 +4,12 @@
  * Dosya boyutu ve format validasyonu, önizleme gösterimi içerir.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useDropzone } from 'react-dropzone';
-import { MdCloudUpload, MdClose, MdImage } from 'react-icons/md';
+import { MdCloudUpload, MdClose, MdImage, MdCameraAlt } from 'react-icons/md';
 import { UPLOAD_LIMITS, MESSAGES } from 'lib/constants';
+import CameraCapture from './CameraCapture';
 
 /**
  * Dosya boyutunu okunabilir formata çevirir.
@@ -43,6 +44,7 @@ export default function ImageUploader({
   onError,
   disabled,
 }) {
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   /**
    * Dosya bırakma/seçme işleyicisi.
    */
@@ -176,6 +178,18 @@ export default function ImageUploader({
         )}
       </div>
 
+      {/* Kamera Butonu */}
+      {!disabled && (
+        <button
+          type="button"
+          onClick={() => setIsCameraOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-[20px] border-2 border-gray-200 bg-white py-3 text-sm font-medium text-navy-700 transition-all duration-200 hover:border-brand-400 hover:bg-brand-500/5 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:border-brand-400/50"
+        >
+          <MdCameraAlt className="h-5 w-5 text-brand-500" />
+          Kamera ile Çek
+        </button>
+      )}
+
       {/* Hata mesajı */}
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-500/30 dark:bg-red-500/10">
@@ -193,6 +207,13 @@ export default function ImageUploader({
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
+
+      {/* Kamera Modal */}
+      <CameraCapture
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={onFileSelect}
+      />
     </div>
   );
 }

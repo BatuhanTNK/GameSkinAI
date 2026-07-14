@@ -40,11 +40,14 @@ const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
 
 /**
- * Supabase URL'nin geçerli olup olmadığını kontrol eder.
+ * Supabase URL'sinin geçerli olup olmadığını kontrol eder.
  * @param {string} url
  * @returns {boolean}
  */
-function isValidUrl(url) {
+function isValidSupabaseUrl(url) {
+  if (!url || url.includes('placeholder') || url.includes('your_') || url.includes('your-')) {
+    return false;
+  }
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -53,11 +56,25 @@ function isValidUrl(url) {
   }
 }
 
-const isConfigured = isValidUrl(supabaseUrl) && supabaseAnonKey.length > 0;
+/**
+ * Supabase Anon Key'in geçerli (JWT formatında) olup olmadığını kontrol eder.
+ * @param {string} key
+ * @returns {boolean}
+ */
+function isValidSupabaseKey(key) {
+  if (!key || key.includes('placeholder') || key.includes('your_') || key.includes('your-')) {
+    return false;
+  }
+  // Supabase anon/public anahtarları her zaman 3 parçadan oluşan bir JWT'dir (Header.Payload.Signature) ve 'eyJ' ile başlar.
+  const parts = key.split('.');
+  return parts.length === 3 && key.startsWith('eyJ');
+}
+
+const isConfigured = isValidSupabaseUrl(supabaseUrl) && isValidSupabaseKey(supabaseAnonKey);
 
 if (!isConfigured) {
-  console.error(
-    'Supabase yapılandırılmamış. .env dosyanıza geçerli REACT_APP_SUPABASE_URL ve REACT_APP_SUPABASE_ANON_KEY ekleyin.'
+  console.warn(
+    'Supabase yapılandırılmamış veya geçersiz kimlik bilgileri tespit edildi. .env dosyanıza geçerli REACT_APP_SUPABASE_URL ve REACT_APP_SUPABASE_ANON_KEY (JWT formatında) ekleyin. Uygulama Demo Modunda çalışıyor.'
   );
 }
 

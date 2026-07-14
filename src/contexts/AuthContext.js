@@ -147,12 +147,68 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * Google OAuth ile giriş yapar.
+   */
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      setUser({
+        id: 'demo-google-user',
+        email: 'google-demo@gameskinai.com',
+        user_metadata: { display_name: 'Google Kullanıcı' },
+      });
+      return { data: {}, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/admin/converter',
+        },
+      });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+
+  /**
+   * Discord OAuth ile giriş yapar.
+   */
+  const signInWithDiscord = async () => {
+    if (!isSupabaseConfigured) {
+      setUser({
+        id: 'demo-discord-user',
+        email: 'discord-demo@gameskinai.com',
+        user_metadata: { display_name: 'Discord Kullanıcı' },
+      });
+      return { data: {}, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'discord',
+        options: {
+          redirectTo: window.location.origin + '/admin/converter',
+        },
+      });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
     signOut,
+    signInWithGoogle,
+    signInWithDiscord,
     isDemo: !isSupabaseConfigured,
   };
 

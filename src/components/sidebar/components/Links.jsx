@@ -3,12 +3,14 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import DashIcon from "components/icons/DashIcon";
 import { useAuth } from "contexts/AuthContext";
+import { useTranslation } from "contexts/TranslationContext";
 import { MdLogout } from "react-icons/md";
 
 export function SidebarLinks(props) {
   let location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { t } = useTranslation();
 
   const { routes } = props;
 
@@ -30,6 +32,10 @@ export function SidebarLinks(props) {
       .filter((route) => !route.hidden) // Hidden route'ları filtrele
       .filter((route) => route.layout === "/admin") // Sadece admin route'ları göster
       .map((route, index) => {
+        const translatedName = t(`nav.${route.path}`) !== `nav.${route.path}` 
+          ? t(`nav.${route.path}`) 
+          : route.name;
+
         return (
           <Link key={index} to={route.layout + "/" + route.path}>
             <div className="relative mb-3 flex hover:cursor-pointer">
@@ -53,7 +59,7 @@ export function SidebarLinks(props) {
                       : "font-medium text-gray-600"
                   }`}
                 >
-                  {route.name}
+                  {translatedName}
                 </p>
               </li>
               {activeRoute(route.path) ? (
@@ -78,7 +84,7 @@ export function SidebarLinks(props) {
             <MdLogout className="h-6 w-6" />
           </span>
           <p className="leading-1 ml-4 flex font-medium text-gray-600 hover:text-red-500 transition-colors duration-200">
-            Çıkış Yap
+            {t('nav.logout')}
           </p>
         </li>
       </div>

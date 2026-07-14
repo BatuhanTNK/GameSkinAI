@@ -41,6 +41,7 @@ export const ROUTES = {
   SIGN_UP: '/auth/sign-up',
   CONVERTER: '/admin/converter',
   HISTORY: '/admin/history',
+  PROFILE: '/admin/profile',
 };
 
 /** Toast mesajları */

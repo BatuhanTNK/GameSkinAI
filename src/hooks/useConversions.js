@@ -13,7 +13,17 @@ import { TABLES } from 'lib/constants';
  */
 export function useConversions() {
   const { user } = useAuth();
-  const [conversions, setConversions] = useState([]);
+  const [conversions, setConversions] = useState(() => {
+    if (!isSupabaseConfigured) {
+      try {
+        const stored = localStorage.getItem('gameskinai_conversions');
+        return stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -28,7 +38,13 @@ export function useConversions() {
     }
 
     if (!isSupabaseConfigured) {
-      // Demo modu: local state zaten güncel
+      // Demo modu: localStorage'dan oku
+      try {
+        const stored = localStorage.getItem('gameskinai_conversions');
+        setConversions(stored ? JSON.parse(stored) : []);
+      } catch (e) {
+        console.error('LocalStorage okuma hatası:', e);
+      }
       setLoading(false);
       return;
     }
@@ -59,9 +75,12 @@ export function useConversions() {
   const deleteConversion = async (id) => {
     try {
       const previousConversions = [...conversions];
-      setConversions((prev) => prev.filter((c) => c.id !== id));
+      const updated = conversions.filter((c) => c.id !== id);
+      setConversions(updated);
 
-      if (isSupabaseConfigured) {
+      if (!isSupabaseConfigured) {
+        localStorage.setItem('gameskinai_conversions', JSON.stringify(updated));
+      } else {
         const { error: deleteError } = await supabase
           .from(TABLES.CONVERSIONS)
           .delete()
@@ -95,13 +114,15 @@ export function useConversions() {
       };
 
       if (!isSupabaseConfigured) {
-        // Demo modu: local state'e ekle
+        // Demo modu: local state ve localStorage'a ekle
         const demoData = {
           ...newConversion,
           id: 'demo-' + Date.now(),
           created_at: new Date().toISOString(),
         };
-        setConversions((prev) => [demoData, ...prev]);
+        const updated = [demoData, ...conversions];
+        setConversions(updated);
+        localStorage.setItem('gameskinai_conversions', JSON.stringify(updated));
         return { data: demoData, error: null };
       }
 
@@ -126,9 +147,9 @@ export function useConversions() {
   const updateConversion = async (id, updateData) => {
     try {
       if (!isSupabaseConfigured) {
-        setConversions((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, ...updateData } : c))
-        );
+        const updated = conversions.map((c) => (c.id === id ? { ...c, ...updateData } : c));
+        setConversions(updated);
+        localStorage.setItem('gameskinai_conversions', JSON.stringify(updated));
         return { data: { id, ...updateData }, error: null };
       }
 

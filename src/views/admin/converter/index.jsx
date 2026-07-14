@@ -4,7 +4,7 @@
  * Tüm state bu sayfada tutulur ve alt bileşenlere aktarılır.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from 'contexts/AuthContext';
 import { useConversions } from 'hooks/useConversions';
 import { analyzeAndConvert, fileToBase64, generateImage } from 'lib/gemini';
@@ -13,12 +13,195 @@ import { uploadImage, uploadBase64Image, fetchThemes } from 'lib/supabase';
 import {
   CONVERSION_STATUS,
   RATE_LIMIT_SECONDS,
-  MESSAGES,
 } from 'lib/constants';
 import ThemeSelector from 'components/converter/ThemeSelector';
 import ImageUploader from 'components/converter/ImageUploader';
 import ConversionResult from 'components/converter/ConversionResult';
 import { MdAutoAwesome } from 'react-icons/md';
+import { normalizeSkinData } from 'lib/skinDataParser';
+import { useToast } from 'contexts/ToastContext';
+import { useTranslation } from 'contexts/TranslationContext';
+
+/**
+ * Düz metin açıklamadan Minecraft skin verilerini (renkler, aksesuarlar)
+ * regex kullanarak tahmin eder. JSON parse başarısız olursa veya eski kayıtlar için kullanılır.
+ * @param {string} text - AI açıklaması
+ * @returns {Object} skinData objesi
+ */
+function parseTextDescriptionToSkinData(text) {
+  const lowercase = text.toLowerCase();
+  
+  const colorMap = {
+    red: '#e53e3e',
+    kırmızı: '#e53e3e',
+    orange: '#dd6b20',
+    turuncu: '#dd6b20',
+    yellow: '#d69e2e',
+    sarı: '#d69e2e',
+    green: '#38a169',
+    yeşil: '#38a169',
+    blue: '#3182ce',
+    mavi: '#3182ce',
+    purple: '#805ad5',
+    mor: '#805ad5',
+    pink: '#d53f8c',
+    pembe: '#d53f8c',
+    black: '#1a1a1a',
+    siyah: '#1a1a1a',
+    white: '#ffffff',
+    beyaz: '#ffffff',
+    grey: '#718096',
+    gray: '#718096',
+    gri: '#718096',
+    brown: '#8b4513',
+    kahverengi: '#8b4513',
+  };
+  
+  // Varsayılan skin verileri (Steve benzeri varsayılan)
+  const skinData = {
+    skinColor: '#e29a6f',
+    hairColor: '#2d1e18',
+    hairStyle: 'short',
+    eyeColor: '#32587f',
+    shirtColor: '#2353a2',
+    sleeveLength: 'short',
+    pantsColor: '#212121',
+    shoesColor: '#1a1a1a',
+    hasBeard: false,
+    beardColor: '#2d1e18',
+    accessory: 'none',
+    accessoryColor: '#e53e3e',
+  };
+
+  // 1. Saç Rengi Algılama
+  if (lowercase.includes('black hair') || lowercase.includes('dark hair') || lowercase.includes('siyah saç')) {
+    skinData.hairColor = '#1a1a1a';
+  } else if (
+    lowercase.includes('blonde hair') || 
+    lowercase.includes('blond hair') || 
+    lowercase.includes('yellow hair') || 
+    lowercase.includes('sarı saç')
+  ) {
+    skinData.hairColor = '#e5c158';
+  } else if (lowercase.includes('red hair') || lowercase.includes('orange hair') || lowercase.includes('kızıl saç')) {
+    skinData.hairColor = '#b85621';
+  } else if (lowercase.includes('grey hair') || lowercase.includes('gray hair') || lowercase.includes('gri saç')) {
+    skinData.hairColor = '#8a8a8a';
+  } else if (lowercase.includes('brown hair') || lowercase.includes('kahverengi saç')) {
+    skinData.hairColor = '#503525';
+  }
+
+  // 2. Sakal Algılama
+  if (
+    lowercase.includes('beard') || 
+    lowercase.includes('mustache') || 
+    lowercase.includes('facial hair') || 
+    lowercase.includes('bearded') || 
+    lowercase.includes('sakal') || 
+    lowercase.includes('bıyık')
+  ) {
+    skinData.hasBeard = true;
+    skinData.beardColor = skinData.hairColor; // Saç rengiyle eşleştir
+  }
+
+  // 3. Aksesuar Algılama
+  if (lowercase.includes('headband') || lowercase.includes('bandana')) {
+    skinData.accessory = 'headband';
+    if (lowercase.includes('red') || lowercase.includes('kırmızı') || lowercase.includes('turuncu') || lowercase.includes('orange')) {
+      skinData.accessoryColor = '#e53e3e';
+    } else if (lowercase.includes('blue') || lowercase.includes('mavi')) {
+      skinData.accessoryColor = '#3182ce';
+    } else if (lowercase.includes('black') || lowercase.includes('siyah')) {
+      skinData.accessoryColor = '#1a1a1a';
+    } else {
+      skinData.accessoryColor = '#e53e3e';
+    }
+  } else if (
+    lowercase.includes('glasses') || 
+    lowercase.includes('spectacles') || 
+    lowercase.includes('gözlük')
+  ) {
+    skinData.accessory = 'glasses';
+    if (lowercase.includes('red') || lowercase.includes('kırmızı')) skinData.accessoryColor = '#e53e3e';
+    else if (lowercase.includes('black') || lowercase.includes('siyah')) skinData.accessoryColor = '#1a1a1a';
+  } else if (lowercase.includes('hat') || lowercase.includes('cap') || lowercase.includes('şapka') || lowercase.includes('bere')) {
+    skinData.accessory = 'hat';
+  }
+
+  // Kelime eşleşmesi kontrolü (kelime sınırları ile, örn. "striped" içindeki "red"i eşleştirmemek için)
+  const hasWord = (str, word) => {
+    return new RegExp('\\b' + word + '\\b', 'i').test(str);
+  };
+
+  // 4. Tişört Rengi Algılama (Window Search)
+  const shirtKeywords = ['shirt', 'top', 'jersey', 'tişört', 'kazak', 'forma', 'üst', 'vest', 'sweater', 'hoodie', 'blouse'];
+  let shirtIndex = -1;
+  for (const keyword of shirtKeywords) {
+    const idx = lowercase.indexOf(keyword);
+    if (idx !== -1) {
+      shirtIndex = idx;
+      break;
+    }
+  }
+
+  if (shirtIndex !== -1) {
+    const start = Math.max(0, shirtIndex - 30);
+    const end = Math.min(lowercase.length, shirtIndex + 35);
+    const windowText = lowercase.substring(start, end);
+    for (const [colorName, colorHex] of Object.entries(colorMap)) {
+      if (hasWord(windowText, colorName)) {
+        skinData.shirtColor = colorHex;
+        // İkincil renk kontrolü (çizgili desenler için)
+        for (const [colorName2, colorHex2] of Object.entries(colorMap)) {
+          if (colorHex2 !== colorHex && hasWord(windowText, colorName2)) {
+            skinData.shirtColor2 = colorHex2;
+            break;
+          }
+        }
+        break;
+      }
+    }
+  } else {
+    // Hiç tişört kelimesi bulunamazsa tüm metinde renk ara
+    for (const [colorName, colorHex] of Object.entries(colorMap)) {
+      if (hasWord(lowercase, colorName)) {
+        skinData.shirtColor = colorHex;
+        break;
+      }
+    }
+  }
+
+  // 5. Pantolon Rengi Algılama (Window Search)
+  const pantsKeywords = ['pants', 'shorts', 'trousers', 'pantolon', 'şort', 'jeans', 'skirt', 'legs'];
+  let pantsIndex = -1;
+  for (const keyword of pantsKeywords) {
+    const idx = lowercase.indexOf(keyword);
+    if (idx !== -1) {
+      pantsIndex = idx;
+      break;
+    }
+  }
+
+  if (pantsIndex !== -1) {
+    const start = Math.max(0, pantsIndex - 35);
+    const end = Math.min(lowercase.length, pantsIndex + 35);
+    const windowText = lowercase.substring(start, end);
+    for (const [colorName, colorHex] of Object.entries(colorMap)) {
+      if (hasWord(windowText, colorName)) {
+        skinData.pantsColor = colorHex;
+        break;
+      }
+    }
+  }
+
+  // 6. Pantolon Boyu Algılama (Shorts/Şort)
+  skinData.pantsLength = 'long';
+  if (hasWord(lowercase, 'shorts') || hasWord(lowercase, 'şort') || lowercase.includes('short pants') || lowercase.includes('yarım pantolon')) {
+    skinData.pantsLength = 'short';
+  }
+
+  return skinData;
+}
 
 /**
  * Converter sayfası.
@@ -27,6 +210,7 @@ import { MdAutoAwesome } from 'react-icons/md';
 export default function Converter() {
   const { user } = useAuth();
   const { addConversion } = useConversions();
+  const { t } = useTranslation();
 
   // Dinamik temalar state
   const [themes, setThemes] = useState([]);
@@ -68,18 +252,8 @@ export default function Converter() {
   // Rate limiting
   const lastRequestTime = useRef(0);
 
-  // Toast/bildirim state
-  const [toast, setToast] = useState(null);
-
-  /**
-   * Toast bildirim gösterir.
-   * @param {string} message - Mesaj
-   * @param {'success'|'error'|'info'} type - Bildirim tipi
-   */
-  const showToast = useCallback((message, type = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
+  // Global toast
+  const { showToast } = useToast();
 
   /**
    * Tema seçim işleyicisi.
@@ -129,11 +303,11 @@ export default function Converter() {
   const handleConvert = async () => {
     // Validasyon
     if (!selectedTheme) {
-      showToast(MESSAGES.SELECT_THEME, 'error');
+      showToast(t('converter.toast.theme'), 'error');
       return;
     }
     if (!uploadedFile) {
-      showToast(MESSAGES.UPLOAD_IMAGE, 'error');
+      showToast(t('converter.toast.image'), 'error');
       return;
     }
 
@@ -145,13 +319,13 @@ export default function Converter() {
         RATE_LIMIT_SECONDS - timeSinceLastRequest
       );
       showToast(
-        `Lütfen ${remainingSeconds} saniye daha bekleyin.`,
+        t('converter.rateLimit', { seconds: remainingSeconds }),
         'error'
       );
       return;
     }
 
-    const theme = themes.find((t) => t.slug === selectedTheme) || getThemeBySlug(selectedTheme);
+    const theme = THEMES.find((t) => t.slug === selectedTheme) || getThemeBySlug(selectedTheme);
     if (!theme) {
       showToast('Geçersiz tema seçimi.', 'error');
       return;
@@ -175,11 +349,63 @@ export default function Converter() {
       }
 
       // 3. Gemini API'ye gönder (Açıklama üret)
-      const aiResult = await analyzeAndConvert(base64, mimeType, theme.prompt);
+      const isMinecraft = theme.slug === 'minecraft';
+      const aiResult = await analyzeAndConvert(base64, mimeType, theme.prompt, isMinecraft, theme.responseSchema);
+
+      let finalDescription = aiResult.description;
+      let userFriendlyDescription = aiResult.description;
+
+      if (isMinecraft) {
+        try {
+          let text = aiResult.description.trim();
+          // JSON bloğunu ayıkla (varsa önündeki/arkasındaki markdown ve metinleri temizler)
+          const firstBrace = text.indexOf('{');
+          const lastBrace = text.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            text = text.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(text);
+          
+          // Gemini farklı key isimleri kullanabilir - hepsini dene
+          const desc = parsed.description 
+            || parsed.character_description 
+            || parsed.desc 
+            || parsed.text 
+            || 'Minecraft skin oluşturuldu.';
+          
+          const sd = parsed.skinData 
+            || parsed.skin_data 
+            || parsed.skindata 
+            || parsed.colors 
+            || parsed.skin 
+            || parsed;
+          
+          // Normalize et: Her zaman standart key isimlerini kullan
+          const normalizedSkinData = normalizeSkinData(sd);
+          
+          console.log('Successfully parsed Gemini JSON:', parsed);
+          console.log('Normalized skinData for canvas drawing:', normalizedSkinData);
+          
+          userFriendlyDescription = desc;
+          finalDescription = JSON.stringify({
+            description: desc,
+            skinData: normalizedSkinData,
+          });
+        } catch (err) {
+          console.error('Minecraft skin JSON parse error, falling back to regex text parsing:', err);
+          const fallbackSkinData = parseTextDescriptionToSkinData(aiResult.description);
+          finalDescription = JSON.stringify({
+            description: aiResult.description,
+            skinData: fallbackSkinData,
+          });
+        }
+      }
 
       // 4. Görsel üretimi için prompt hazırla
       let resultImageUrl = '';
-      const imagePrompt = `${theme.label} character based on: ${aiResult.description}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`;
+      const imagePrompt = isMinecraft
+        ? `Stunning official Minecraft game keyart illustration style, highly detailed 3D blocky voxel character based on: ${userFriendlyDescription}. Dynamic heroic pose, volumetric studio lighting, soft ambient occlusion, vibrant colors, clean soft background, premium game cover render.`
+        : `${theme.label} character based on: ${userFriendlyDescription}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`;
 
       try {
         const resultImageBase64 = await generateImage(imagePrompt);
@@ -187,18 +413,17 @@ export default function Converter() {
         resultImageUrl = await uploadBase64Image(resultImageBase64, 'image/jpeg');
       } catch (err) {
         console.warn('Görsel üretimi veya Storage yüklemesi başarısız oldu, doğrudan URL yedeklemesi (Pollinations AI) yapılıyor:', err);
-        // Tarayıcı tarafındaki CORS/403 engellerini aşmak için doğrudan Pollinations URL'ini kullan
         const seed = Math.floor(Math.random() * 1000000);
         resultImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=512&height=512&nologo=true&seed=${seed}`;
       }
 
-      // 6. Supabase'e kaydet
+      // 6. Supabase'e veya local state'e kaydet
       const conversionData = {
         theme_slug: theme.slug,
         theme_label: theme.label,
         original_image_url: originalImageUrl,
-        result_image_url: resultImageUrl,
-        result_description: aiResult.description,
+        result_image_url: resultImageUrl, // Üretilen 3D AI görsel URL'i
+        result_description: finalDescription,
         status: CONVERSION_STATUS.DONE,
       };
 
@@ -212,15 +437,16 @@ export default function Converter() {
       // 7. Sonucu göster
       const displayResult = savedConversion || {
         ...conversionData,
-        description: aiResult.description,
+        description: finalDescription,
         created_at: new Date().toISOString(),
       };
 
       setResult(displayResult);
-      showToast(MESSAGES.CONVERSION_SUCCESS, 'success');
+      showToast(t('converter.toast.success'), 'success');
     } catch (error) {
       console.error('Dönüşüm hatası:', error);
-      setConversionError(error.message || MESSAGES.CONVERSION_ERROR);
+      showToast(t('converter.toast.error'), 'error');
+      setConversionError(error.message || t('converter.toast.error'));
     } finally {
       setIsConverting(false);
     }
@@ -242,35 +468,13 @@ export default function Converter() {
 
   return (
     <div className="mt-3 flex flex-col gap-6">
-      {/* Toast Bildirimi */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-xl transition-all duration-300 ${
-            toast.type === 'success'
-              ? 'bg-green-500 text-white'
-              : toast.type === 'error'
-              ? 'bg-red-500 text-white'
-              : 'bg-brand-500 text-white'
-          }`}
-        >
-          <p className="text-sm font-medium">{toast.message}</p>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="ml-2 text-white/70 hover:text-white"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       {/* Karşılama */}
       <div>
         <h2 className="text-3xl font-bold text-navy-700 dark:text-white">
-          Merhaba, {displayName}! 👋
+          {t('converter.welcome', { name: displayName })}
         </h2>
         <p className="mt-1 text-base text-gray-600 dark:text-gray-400">
-          Fotoğrafınızı seçin, bir tema belirleyin ve AI ile dönüştürün.
+          {t('converter.subtitle')}
         </p>
       </div>
 
@@ -280,11 +484,11 @@ export default function Converter() {
         <div className="xl:col-span-2">
           <div className="mb-4 flex items-center gap-2">
             <h3 className="text-lg font-bold text-navy-700 dark:text-white">
-              1. Tema Seçin
+              {t('converter.step1')}
             </h3>
             {selectedTheme && (
               <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-500/20 dark:text-green-400">
-                ✓ Seçildi
+                ✓ {t('converter.selected')}
               </span>
             )}
           </div>
@@ -300,11 +504,11 @@ export default function Converter() {
         <div className="xl:col-span-1">
           <div className="mb-4 flex items-center gap-2">
             <h3 className="text-lg font-bold text-navy-700 dark:text-white">
-              2. Fotoğraf Yükleyin
+              {t('converter.step2')}
             </h3>
             {uploadedFile && (
               <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-500/20 dark:text-green-400">
-                ✓ Yüklendi
+                ✓ {t('converter.uploaded')}
               </span>
             )}
           </div>
@@ -329,7 +533,7 @@ export default function Converter() {
           className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 px-10 py-4 text-lg font-bold text-white shadow-xl transition-all duration-300 hover:from-brand-500 hover:to-brand-700 hover:shadow-2xl hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-xl"
         >
           <MdAutoAwesome className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
-          {isConverting ? 'Dönüştürülüyor...' : 'Dönüştür'}
+          {isConverting ? t('converter.converting') : t('converter.btnConvert')}
         </button>
       </div>
 

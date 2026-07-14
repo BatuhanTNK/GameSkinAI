@@ -86,8 +86,17 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
   const gradientColor =
     THEME_COLOR_MAP[conversion.theme_slug] || 'from-brand-400 to-brand-600';
 
-  const description =
-    conversion.result_description || 'Açıklama mevcut değil.';
+  let description = conversion.result_description || 'Açıklama mevcut değil.';
+  
+  if (description.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(description);
+      description = parsed.description || parsed.character_description || parsed.desc || parsed.text || description;
+    } catch (e) {
+      console.error('Failed to parse JSON description in HistoryCard', e);
+    }
+  }
+
   const shortDescription =
     description.length > 120
       ? description.substring(0, 120) + '...'

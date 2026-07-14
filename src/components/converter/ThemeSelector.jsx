@@ -12,6 +12,10 @@ import {
   FaUserAstronaut,
   FaDragon,
   FaSeedling,
+  FaCrosshairs,
+  FaCar,
+  FaCircle,
+  FaShieldAlt,
 } from 'react-icons/fa';
 import { THEMES } from 'lib/themes';
 
@@ -22,6 +26,10 @@ const ICON_MAP = {
   FaUserAstronaut: FaUserAstronaut,
   FaDragon: FaDragon,
   FaSeedling: FaSeedling,
+  FaCrosshairs: FaCrosshairs,
+  FaCar: FaCar,
+  FaCircle: FaCircle,
+  FaShieldAlt: FaShieldAlt,
 };
 
 /** Tema renk sınıflarını eşler */
@@ -60,6 +68,20 @@ const COLOR_MAP = {
     icon: 'text-teal-500',
     selectedBg: 'bg-teal-500/10 dark:bg-teal-500/20',
     gradient: 'from-teal-400 to-cyan-500',
+  },
+  blue: {
+    bg: 'bg-blue-50 dark:bg-blue-500/10',
+    border: 'border-blue-500',
+    icon: 'text-blue-500',
+    selectedBg: 'bg-blue-500/10 dark:bg-blue-500/20',
+    gradient: 'from-blue-400 to-indigo-500',
+  },
+  orange: {
+    bg: 'bg-orange-50 dark:bg-orange-500/10',
+    border: 'border-orange-500',
+    icon: 'text-orange-500',
+    selectedBg: 'bg-orange-500/10 dark:bg-orange-500/20',
+    gradient: 'from-orange-400 to-amber-500',
   },
 };
 
