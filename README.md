@@ -101,3 +101,5 @@ Connect with the community! Feel free to ask questions, report issues, and meet 
 ⭐️ [Copyright 2023 Horizon UI ](https://www.horizon-ui.com/?ref=readme-horizon-tailwind-react)
 
 📄 [Horizon UI License](https://www.simmmple.com/licenses?ref=readme-horizon-tailwind-react)
+
+> GameSkinAI — deployed via GitHub webhook to gameskin.batutnk.com.tr (2026-07-21)
