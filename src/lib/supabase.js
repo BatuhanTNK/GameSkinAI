@@ -62,12 +62,11 @@ function isValidSupabaseUrl(url) {
  * @returns {boolean}
  */
 function isValidSupabaseKey(key) {
-  if (!key || key.includes('placeholder') || key.includes('your_') || key.includes('your-')) {
+  if (!key || typeof key !== 'string' || key.includes('placeholder') || key.includes('your_') || key.includes('your-')) {
     return false;
   }
-  // Supabase anon/public anahtarları her zaman 3 parçadan oluşan bir JWT'dir (Header.Payload.Signature) ve 'eyJ' ile başlar.
-  const parts = key.split('.');
-  return parts.length === 3 && key.startsWith('eyJ');
+  // Supabase hem JWT (eyJ...) hem de publishable (sb_publishable_...) anahtar formatlarını destekler.
+  return key.trim().length > 10;
 }
 
 const isConfigured = isValidSupabaseUrl(supabaseUrl) && isValidSupabaseKey(supabaseAnonKey);

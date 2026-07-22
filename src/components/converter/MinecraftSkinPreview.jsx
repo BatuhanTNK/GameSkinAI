@@ -95,7 +95,6 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
     const shirt2   = skinData.shirtColor2 ? sanitizeColor(skinData.shirtColor2, '') : '';
     const shirt2Dk = shirt2 ? adjustColor(shirt2, 0.82) : '';
     const pants    = sanitizeColor(skinData.pantsColor, '#212121');
-    const pantsDk  = adjustColor(pants, 0.82);
     const shoes    = sanitizeColor(skinData.shoesColor, '#1a1a1a');
     const beard    = sanitizeColor(skinData.beardColor || skinData.hairColor, '#2d1e18');
     const accColor = sanitizeColor(skinData.accessoryColor, '#e53e3e');
