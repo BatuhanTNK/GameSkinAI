@@ -17,6 +17,8 @@ import {
 import Card from 'components/card';
 import { CONVERSION_STATUS } from 'lib/constants';
 
+import { parseConversionDescription } from 'lib/skinDataParser';
+
 /** Tema slug'ını ikon bileşenine eşler */
 const THEME_ICON_MAP = {
   minecraft: FaCube,
@@ -86,21 +88,18 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
   const gradientColor =
     THEME_COLOR_MAP[conversion.theme_slug] || 'from-brand-400 to-brand-600';
 
-  let description = conversion.result_description || 'Açıklama mevcut değil.';
-  
-  if (description.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(description);
-      description = parsed.description || parsed.character_description || parsed.desc || parsed.text || description;
-    } catch (e) {
-      console.error('Failed to parse JSON description in HistoryCard', e);
-    }
-  }
+  const { descriptionText } = parseConversionDescription(
+    conversion.result_description || '',
+    conversion.theme_slug
+  );
+  const description = descriptionText || 'Açıklama mevcut değil.';
 
   const shortDescription =
     description.length > 120
       ? description.substring(0, 120) + '...'
       : description;
+
+  const displayImage = conversion.result_image_url || conversion.original_image_url;
 
   /**
    * Silme işleyicisi.
@@ -143,10 +142,10 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
       </div>
 
       {/* Görsel Önizleme */}
-      {conversion.result_image_url && (
+      {displayImage && (
         <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100 dark:bg-navy-900 border-b border-gray-100 dark:border-white/5">
           <img
-            src={conversion.result_image_url}
+            src={displayImage}
             alt={conversion.theme_label}
             className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
           />
