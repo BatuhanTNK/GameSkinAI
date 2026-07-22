@@ -220,13 +220,19 @@ export default function Converter() {
       try {
         const dbThemes = await fetchThemes();
         if (dbThemes && dbThemes.length > 0) {
-          const formattedThemes = dbThemes.map((t) => ({
-            ...t,
-            color: t.color || 'purple',
-            bgGradient: t.bgGradient || 'from-purple-500 to-violet-600',
-            icon: t.icon || 'FaUserAstronaut',
-          }));
-          setThemes(formattedThemes);
+          const dbSlugSet = new Set(dbThemes.map((t) => t.slug));
+          const formattedDbThemes = dbThemes.map((t) => {
+            const staticMatch = THEMES.find((st) => st.slug === t.slug) || {};
+            return {
+              ...staticMatch,
+              ...t,
+              color: t.color || staticMatch.color || 'purple',
+              bgGradient: t.bgGradient || staticMatch.bgGradient || 'from-purple-500 to-violet-600',
+              icon: t.icon || staticMatch.icon || 'FaUserAstronaut',
+            };
+          });
+          const missingStaticThemes = THEMES.filter((st) => !dbSlugSet.has(st.slug));
+          setThemes([...formattedDbThemes, ...missingStaticThemes]);
         } else {
           setThemes(THEMES);
         }
