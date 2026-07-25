@@ -1,0 +1,17 @@
+{
+  "short_name": "GameSkinAI",
+  "name": "GameSkinAI - Photo to Game Character Converter",
+  "description": "Convert your photos to official game character avatars using advanced AI models.",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#4318FF",
+  "background_color": "#F4F7FE"
+}
