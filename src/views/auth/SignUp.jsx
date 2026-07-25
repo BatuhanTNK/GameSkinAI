@@ -58,10 +58,16 @@ export default function SignUp() {
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = displayName.trim();
     setIsLoading(true);
 
     try {
-      const { error: signUpError } = await signUp(email, password, displayName);
+      const { error: signUpError } = await signUp(
+        cleanEmail,
+        password,
+        cleanName
+      );
       if (signUpError) {
         const errorMessages = {
           'User already registered': 'Bu e-posta adresi zaten kayıtlı.',
@@ -71,10 +77,11 @@ export default function SignUp() {
             'Geçersiz e-posta formatı.',
         };
         setError(
-          errorMessages[signUpError.message] ||
-            signUpError.message ||
-            MESSAGES.SIGN_UP_ERROR
+          errorMessages[signUpError.message] || MESSAGES.SIGN_UP_ERROR
         );
+        if (process.env.NODE_ENV === 'development') {
+          console.error('SignUp detaylı hata:', signUpError);
+        }
         return;
       }
       setSuccess(true);

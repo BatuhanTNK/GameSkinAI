@@ -47,6 +47,18 @@ function ProtectedRoute({ children }) {
 const App = () => {
   return (
     <Routes>
+      {/* URL ile dil desteği (/tr/admin/converter, /en/admin/converter vb.) */}
+      <Route path=":lang/auth/*" element={<AuthLayout />} />
+      <Route
+        path=":lang/admin/*"
+        element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Ön eki olmayan varsayılan yönlendirmeler */}
       <Route path="auth/*" element={<AuthLayout />} />
       <Route
         path="admin/*"
@@ -56,9 +68,11 @@ const App = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/admin/converter" replace />} />
+      <Route path="/" element={<Navigate to="/tr/admin/converter" replace />} />
+      <Route path="*" element={<Navigate to="/tr/admin/converter" replace />} />
     </Routes>
   );
 };
+
 
 export default App;

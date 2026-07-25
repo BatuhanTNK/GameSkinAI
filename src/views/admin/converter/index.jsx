@@ -18,190 +18,10 @@ import ThemeSelector from 'components/converter/ThemeSelector';
 import ImageUploader from 'components/converter/ImageUploader';
 import ConversionResult from 'components/converter/ConversionResult';
 import { MdAutoAwesome } from 'react-icons/md';
-import { normalizeSkinData } from 'lib/skinDataParser';
+import { normalizeSkinData, parseTextDescriptionToSkinData } from 'lib/skinDataParser';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
 
-/**
- * Düz metin açıklamadan Minecraft skin verilerini (renkler, aksesuarlar)
- * regex kullanarak tahmin eder. JSON parse başarısız olursa veya eski kayıtlar için kullanılır.
- * @param {string} text - AI açıklaması
- * @returns {Object} skinData objesi
- */
-function parseTextDescriptionToSkinData(text) {
-  const lowercase = text.toLowerCase();
-  
-  const colorMap = {
-    red: '#e53e3e',
-    kırmızı: '#e53e3e',
-    orange: '#dd6b20',
-    turuncu: '#dd6b20',
-    yellow: '#d69e2e',
-    sarı: '#d69e2e',
-    green: '#38a169',
-    yeşil: '#38a169',
-    blue: '#3182ce',
-    mavi: '#3182ce',
-    purple: '#805ad5',
-    mor: '#805ad5',
-    pink: '#d53f8c',
-    pembe: '#d53f8c',
-    black: '#1a1a1a',
-    siyah: '#1a1a1a',
-    white: '#ffffff',
-    beyaz: '#ffffff',
-    grey: '#718096',
-    gray: '#718096',
-    gri: '#718096',
-    brown: '#8b4513',
-    kahverengi: '#8b4513',
-  };
-  
-  // Varsayılan skin verileri (Steve benzeri varsayılan)
-  const skinData = {
-    skinColor: '#e29a6f',
-    hairColor: '#2d1e18',
-    hairStyle: 'short',
-    eyeColor: '#32587f',
-    shirtColor: '#2353a2',
-    sleeveLength: 'short',
-    pantsColor: '#212121',
-    shoesColor: '#1a1a1a',
-    hasBeard: false,
-    beardColor: '#2d1e18',
-    accessory: 'none',
-    accessoryColor: '#e53e3e',
-  };
-
-  // 1. Saç Rengi Algılama
-  if (lowercase.includes('black hair') || lowercase.includes('dark hair') || lowercase.includes('siyah saç')) {
-    skinData.hairColor = '#1a1a1a';
-  } else if (
-    lowercase.includes('blonde hair') || 
-    lowercase.includes('blond hair') || 
-    lowercase.includes('yellow hair') || 
-    lowercase.includes('sarı saç')
-  ) {
-    skinData.hairColor = '#e5c158';
-  } else if (lowercase.includes('red hair') || lowercase.includes('orange hair') || lowercase.includes('kızıl saç')) {
-    skinData.hairColor = '#b85621';
-  } else if (lowercase.includes('grey hair') || lowercase.includes('gray hair') || lowercase.includes('gri saç')) {
-    skinData.hairColor = '#8a8a8a';
-  } else if (lowercase.includes('brown hair') || lowercase.includes('kahverengi saç')) {
-    skinData.hairColor = '#503525';
-  }
-
-  // 2. Sakal Algılama
-  if (
-    lowercase.includes('beard') || 
-    lowercase.includes('mustache') || 
-    lowercase.includes('facial hair') || 
-    lowercase.includes('bearded') || 
-    lowercase.includes('sakal') || 
-    lowercase.includes('bıyık')
-  ) {
-    skinData.hasBeard = true;
-    skinData.beardColor = skinData.hairColor; // Saç rengiyle eşleştir
-  }
-
-  // 3. Aksesuar Algılama
-  if (lowercase.includes('headband') || lowercase.includes('bandana')) {
-    skinData.accessory = 'headband';
-    if (lowercase.includes('red') || lowercase.includes('kırmızı') || lowercase.includes('turuncu') || lowercase.includes('orange')) {
-      skinData.accessoryColor = '#e53e3e';
-    } else if (lowercase.includes('blue') || lowercase.includes('mavi')) {
-      skinData.accessoryColor = '#3182ce';
-    } else if (lowercase.includes('black') || lowercase.includes('siyah')) {
-      skinData.accessoryColor = '#1a1a1a';
-    } else {
-      skinData.accessoryColor = '#e53e3e';
-    }
-  } else if (
-    lowercase.includes('glasses') || 
-    lowercase.includes('spectacles') || 
-    lowercase.includes('gözlük')
-  ) {
-    skinData.accessory = 'glasses';
-    if (lowercase.includes('red') || lowercase.includes('kırmızı')) skinData.accessoryColor = '#e53e3e';
-    else if (lowercase.includes('black') || lowercase.includes('siyah')) skinData.accessoryColor = '#1a1a1a';
-  } else if (lowercase.includes('hat') || lowercase.includes('cap') || lowercase.includes('şapka') || lowercase.includes('bere')) {
-    skinData.accessory = 'hat';
-  }
-
-  // Kelime eşleşmesi kontrolü (kelime sınırları ile, örn. "striped" içindeki "red"i eşleştirmemek için)
-  const hasWord = (str, word) => {
-    return new RegExp('\\b' + word + '\\b', 'i').test(str);
-  };
-
-  // 4. Tişört Rengi Algılama (Window Search)
-  const shirtKeywords = ['shirt', 'top', 'jersey', 'tişört', 'kazak', 'forma', 'üst', 'vest', 'sweater', 'hoodie', 'blouse'];
-  let shirtIndex = -1;
-  for (const keyword of shirtKeywords) {
-    const idx = lowercase.indexOf(keyword);
-    if (idx !== -1) {
-      shirtIndex = idx;
-      break;
-    }
-  }
-
-  if (shirtIndex !== -1) {
-    const start = Math.max(0, shirtIndex - 30);
-    const end = Math.min(lowercase.length, shirtIndex + 35);
-    const windowText = lowercase.substring(start, end);
-    for (const [colorName, colorHex] of Object.entries(colorMap)) {
-      if (hasWord(windowText, colorName)) {
-        skinData.shirtColor = colorHex;
-        // İkincil renk kontrolü (çizgili desenler için)
-        for (const [colorName2, colorHex2] of Object.entries(colorMap)) {
-          if (colorHex2 !== colorHex && hasWord(windowText, colorName2)) {
-            skinData.shirtColor2 = colorHex2;
-            break;
-          }
-        }
-        break;
-      }
-    }
-  } else {
-    // Hiç tişört kelimesi bulunamazsa tüm metinde renk ara
-    for (const [colorName, colorHex] of Object.entries(colorMap)) {
-      if (hasWord(lowercase, colorName)) {
-        skinData.shirtColor = colorHex;
-        break;
-      }
-    }
-  }
-
-  // 5. Pantolon Rengi Algılama (Window Search)
-  const pantsKeywords = ['pants', 'shorts', 'trousers', 'pantolon', 'şort', 'jeans', 'skirt', 'legs'];
-  let pantsIndex = -1;
-  for (const keyword of pantsKeywords) {
-    const idx = lowercase.indexOf(keyword);
-    if (idx !== -1) {
-      pantsIndex = idx;
-      break;
-    }
-  }
-
-  if (pantsIndex !== -1) {
-    const start = Math.max(0, pantsIndex - 35);
-    const end = Math.min(lowercase.length, pantsIndex + 35);
-    const windowText = lowercase.substring(start, end);
-    for (const [colorName, colorHex] of Object.entries(colorMap)) {
-      if (hasWord(windowText, colorName)) {
-        skinData.pantsColor = colorHex;
-        break;
-      }
-    }
-  }
-
-  // 6. Pantolon Boyu Algılama (Shorts/Şort)
-  skinData.pantsLength = 'long';
-  if (hasWord(lowercase, 'shorts') || hasWord(lowercase, 'şort') || lowercase.includes('short pants') || lowercase.includes('yarım pantolon')) {
-    skinData.pantsLength = 'short';
-  }
-
-  return skinData;
-}
 
 /**
  * Converter sayfası.
@@ -389,8 +209,10 @@ export default function Converter() {
           // Normalize et: Her zaman standart key isimlerini kullan
           const normalizedSkinData = normalizeSkinData(sd);
           
-          console.log('Successfully parsed Gemini JSON:', parsed);
-          console.log('Normalized skinData for canvas drawing:', normalizedSkinData);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Successfully parsed Gemini JSON:', parsed);
+            console.log('Normalized skinData for canvas drawing:', normalizedSkinData);
+          }
           
           userFriendlyDescription = desc;
           finalDescription = JSON.stringify({
@@ -407,11 +229,19 @@ export default function Converter() {
         }
       }
 
+      // Prompt sanitizasyonu: Zararlı komut enjeksiyonlarını temizle
+      const safeDescription = (userFriendlyDescription || '')
+        .replace(/ignore\s+(previous|all)\s+instructions/gi, '')
+        .replace(/(system|user|assistant):/gi, '')
+        .replace(/[#{}\\]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       // 4. Görsel üretimi için prompt hazırla
       let resultImageUrl = '';
       const imagePrompt = isMinecraft
-        ? `Stunning official Minecraft game keyart illustration style, highly detailed 3D blocky voxel character based on: ${userFriendlyDescription}. Dynamic heroic pose, volumetric studio lighting, soft ambient occlusion, vibrant colors, clean soft background, premium game cover render.`
-        : `${theme.label} character based on: ${userFriendlyDescription}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`;
+        ? `Stunning official Minecraft game keyart illustration style, highly detailed 3D blocky voxel character based on: ${safeDescription}. Dynamic heroic pose, volumetric studio lighting, soft ambient occlusion, vibrant colors, clean soft background, premium game cover render.`
+        : `${theme.label} character based on: ${safeDescription}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`;
 
       try {
         const resultImageBase64 = await generateImage(imagePrompt);
@@ -470,7 +300,8 @@ export default function Converter() {
   const displayName =
     user?.user_metadata?.display_name ||
     user?.email?.split('@')[0] ||
-    'Kullanıcı';
+    t('common.user');
+
 
   return (
     <div className="mt-3 flex flex-col gap-6">

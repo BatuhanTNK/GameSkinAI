@@ -30,7 +30,8 @@ export default function SignIn() {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setError('Lütfen tüm alanları doldurun.');
       return;
     }
@@ -38,7 +39,8 @@ export default function SignIn() {
     setIsLoading(true);
 
     try {
-      const { error: signInError } = await signIn(email, password);
+      const { error: signInError } = await signIn(cleanEmail, password);
+
       if (signInError) {
         // Supabase hata mesajlarını Türkçeye çevir
         const errorMessages = {
@@ -47,10 +49,11 @@ export default function SignIn() {
           'Too many requests': 'Çok fazla deneme. Lütfen biraz bekleyin.',
         };
         setError(
-          errorMessages[signInError.message] ||
-            signInError.message ||
-            MESSAGES.SIGN_IN_ERROR
+          errorMessages[signInError.message] || MESSAGES.SIGN_IN_ERROR
         );
+        if (process.env.NODE_ENV === 'development') {
+          console.error('SignIn detaylı hata:', signInError);
+        }
         return;
       }
       navigate(ROUTES.CONVERTER);
@@ -152,7 +155,7 @@ export default function SignIn() {
         {/* Password */}
         <InputField
           variant="auth"
-          extra="mb-3"
+          extra="mb-1"
           label="Şifre*"
           placeholder="Min. 8 karakter"
           id="password"
@@ -161,6 +164,17 @@ export default function SignIn() {
           onChange={(e) => setPassword(e.target.value)}
           disabled={isLoading}
         />
+
+        {/* Şifremi Unuttum Linki */}
+        <div className="mb-4 flex justify-end">
+          <Link
+            to="/auth/forgot-password"
+            className="text-xs font-medium text-brand-500 hover:text-brand-600 dark:text-white"
+          >
+            Şifremi unuttum?
+          </Link>
+        </div>
+
 
         {/* Giriş Butonu */}
         <button

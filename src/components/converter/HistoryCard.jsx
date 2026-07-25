@@ -16,8 +16,9 @@ import {
 } from 'react-icons/fa';
 import Card from 'components/card';
 import { CONVERSION_STATUS } from 'lib/constants';
-
 import { parseConversionDescription } from 'lib/skinDataParser';
+import { useTranslation } from 'contexts/TranslationContext';
+
 
 /** Tema slug'ını ikon bileşenine eşler */
 const THEME_ICON_MAP = {
@@ -49,13 +50,7 @@ const STATUS_STYLES = {
     'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
 };
 
-/** Durum etiketleri */
-const STATUS_LABELS = {
-  [CONVERSION_STATUS.PENDING]: 'Bekliyor',
-  [CONVERSION_STATUS.PROCESSING]: 'İşleniyor',
-  [CONVERSION_STATUS.DONE]: 'Tamamlandı',
-  [CONVERSION_STATUS.ERROR]: 'Hata',
-};
+
 
 /**
  * Tarih formatlama yardımcı fonksiyonu.
@@ -80,7 +75,8 @@ const formatDate = (dateStr) => {
  * @param {Function} props.onDelete - Silme callback'i
  * @param {Function} props.onView - Detay görüntüleme callback'i
  */
-export default function HistoryCard({ conversion, onDelete, onView }) {
+export default function HistoryCard({ conversion, onDelete, onView, onTogglePublic }) {
+  const { t } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFull, setShowFull] = useState(false);
 
@@ -109,7 +105,8 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
     setIsDeleting(true);
     try {
       await onDelete(conversion.id);
-    } catch {
+    } catch (err) {
+      console.error('Silme işlemi başarısız:', err);
       setIsDeleting(false);
     }
   };
@@ -137,7 +134,7 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
             STATUS_STYLES[conversion.status] || STATUS_STYLES.done
           }`}
         >
-          {STATUS_LABELS[conversion.status] || 'Tamamlandı'}
+          {t('history.statusCompleted')}
         </span>
       </div>
 
@@ -164,12 +161,12 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
             onClick={() => setShowFull(!showFull)}
             className="mb-4 text-xs font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400"
           >
-            {showFull ? 'Daha az göster' : 'Devamını oku'}
+            {showFull ? t('history.showLess') : t('history.readMore')}
           </button>
         )}
 
         {/* Aksiyon butonları */}
-        <div className="flex items-center gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
+        <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
           {onView && (
             <button
               type="button"
@@ -177,7 +174,21 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:bg-lightPrimary dark:text-gray-400 dark:hover:bg-navy-700"
             >
               <MdVisibility className="h-4 w-4" />
-              Detay
+              {t('history.detail')}
+            </button>
+          )}
+
+          {onTogglePublic && (
+            <button
+              type="button"
+              onClick={() => onTogglePublic(conversion.id, conversion.is_public)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                conversion.is_public
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-navy-700 dark:text-gray-300'
+              }`}
+            >
+              <span>{conversion.is_public ? `✓ ${t('marketplace.isPublic')}` : t('marketplace.makePublic')}</span>
             </button>
           )}
 
@@ -211,13 +222,14 @@ export default function HistoryCard({ conversion, onDelete, onView }) {
             ) : (
               <MdDelete className="h-4 w-4" />
             )}
-            {isDeleting ? 'Siliniyor...' : 'Sil'}
+            {isDeleting ? t('history.deleting') : t('common.delete')}
           </button>
         </div>
       </div>
     </Card>
   );
 }
+
 
 HistoryCard.propTypes = {
   conversion: PropTypes.shape({
@@ -229,11 +241,15 @@ HistoryCard.propTypes = {
     created_at: PropTypes.string,
     original_image_url: PropTypes.string,
     result_image_url: PropTypes.string,
+    is_public: PropTypes.bool,
   }).isRequired,
   onDelete: PropTypes.func.isRequired,
   onView: PropTypes.func,
+  onTogglePublic: PropTypes.func,
 };
 
 HistoryCard.defaultProps = {
   onView: null,
+  onTogglePublic: null,
 };
+

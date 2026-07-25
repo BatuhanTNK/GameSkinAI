@@ -3,17 +3,36 @@
  * Harici paket bağımlılığı olmadan hafif ve performanslı dil yönetimi sağlar.
  */
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const TranslationContext = createContext(null);
+
 
 const LANGUAGES = {
   tr: {
     // Navigation
+    'nav.pages': 'Sayfalar',
     'nav.converter': 'Dönüştürücü',
     'nav.history': 'Geçmişim',
+    'nav.marketplace': 'Topluluk Galerisi',
     'nav.profile': 'Profilim',
     'nav.logout': 'Çıkış Yap',
+
+    // Sidebar & Footer
+    'sidebar.cardDesc': 'Fotoğraflarınızı AI ile oyun karakterlerine dönüştürün!',
+    'sidebar.cardBtn': 'Dönüştürmeye Başla',
+    'footer.rights': 'Tüm hakları saklıdır.',
+
+
+    // Marketplace / Community
+    'marketplace.title': 'Topluluk Galerisi 🎨',
+    'marketplace.subtitle': 'Diğer kullanıcıların ürettiği en popüler AI oyun karakterlerini keşfedin.',
+    'marketplace.searchPlaceholder': 'Galeride karakter veya tema ara...',
+    'marketplace.makePublic': 'Toplulukta Paylaş',
+    'marketplace.isPublic': 'Toplulukta Yayında',
+    'marketplace.noSkins': 'Henüz yayınlanmış bir topluluk skini bulunmuyor.',
+    'share.copiedSuccess': 'Bağlantı panoya kopyalandı!',
+
 
     // Converter Page
     'converter.welcome': 'Merhaba, {name}! 👋',
@@ -65,6 +84,13 @@ const LANGUAGES = {
     'history.allThemes': 'Tüm Temalar',
     'history.sortNewest': 'En Yeni İlk',
     'history.sortOldest': 'En Eski İlk',
+    'history.statusCompleted': 'Tamamlandı',
+    'history.showLess': 'Daha az göster',
+    'history.readMore': 'Devamını oku',
+    'history.detail': 'Detay',
+    'history.deleting': 'Siliniyor...',
+    'common.delete': 'Sil',
+
     
     // Profile Page
     'profile.title': 'Profilim',
@@ -89,18 +115,57 @@ const LANGUAGES = {
     'profile.btnChangePw': 'Şifreyi Değiştir',
     'profile.btnChangingPw': 'Değiştiriliyor...',
 
+    // Auth
+    'auth.forgotPassword': 'Şifremi Unuttum',
+    'auth.forgotPasswordSubtitle': 'E-posta adresinizi girin, şifre sıfırlama bağlantısını gönderelim.',
+    'auth.sendResetLink': 'Sıfırlama Bağlantısı Gönder',
+    'auth.backToSignIn': 'Giriş Sayfasına Dön',
+    'auth.backToDashboard': 'Dashboard\'a Dön',
+    'auth.resetSuccess': 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi! Lütfen gelen kutunuzu kontrol edin.',
+
+
     // Common
     'common.close': 'Kapat',
     'common.cancel': 'İptal',
+    'common.user': 'Kullanıcı',
   },
+
   en: {
     // Navigation
+    'nav.pages': 'Pages',
     'nav.converter': 'Converter',
     'nav.history': 'My History',
+    'nav.marketplace': 'Community Showcase',
     'nav.profile': 'My Profile',
     'nav.logout': 'Sign Out',
 
+    // Sidebar & Footer
+    'sidebar.cardDesc': 'Convert your photos into game characters with AI!',
+    'sidebar.cardBtn': 'Start Converting',
+    'footer.rights': 'All rights reserved.',
+
+
+    // Marketplace / Community
+    'marketplace.title': 'Community Showcase 🎨',
+    'marketplace.subtitle': 'Explore the most popular AI game characters created by other users.',
+    'marketplace.searchPlaceholder': 'Search character or theme in gallery...',
+    'marketplace.makePublic': 'Share to Community',
+    'marketplace.isPublic': 'Public in Gallery',
+    'marketplace.noSkins': 'No community skins published yet.',
+    'share.copiedSuccess': 'Link copied to clipboard!',
+
+
+    // Auth
+    'auth.forgotPassword': 'Forgot Password',
+    'auth.forgotPasswordSubtitle': 'Enter your email address and we will send you a reset link.',
+    'auth.sendResetLink': 'Send Reset Link',
+    'auth.backToSignIn': 'Back to Sign In',
+    'auth.backToDashboard': 'Back to Dashboard',
+    'auth.resetSuccess': 'Password reset link sent to your email address! Please check your inbox.',
+
+
     // Converter Page
+
     'converter.welcome': 'Hello, {name}! 👋',
     'converter.subtitle': 'Select a photo, choose a theme, and convert with AI.',
     'converter.step1': '1. Choose Theme',
@@ -150,6 +215,13 @@ const LANGUAGES = {
     'history.allThemes': 'All Themes',
     'history.sortNewest': 'Newest First',
     'history.sortOldest': 'Oldest First',
+    'history.statusCompleted': 'Completed',
+    'history.showLess': 'Show less',
+    'history.readMore': 'Read more',
+    'history.detail': 'Details',
+    'history.deleting': 'Deleting...',
+    'common.delete': 'Delete',
+
 
     // Profile Page
     'profile.title': 'My Profile',
@@ -177,7 +249,21 @@ const LANGUAGES = {
     // Common
     'common.close': 'Close',
     'common.cancel': 'Cancel',
+    'common.user': 'User',
   }
+};
+
+
+const getLangFromUrlPath = () => {
+  try {
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    if (segments.length > 0 && LANGUAGES[segments[0]]) {
+      return segments[0];
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
 };
 
 export const useTranslation = () => {
@@ -190,13 +276,69 @@ export const useTranslation = () => {
 
 export function TranslationProvider({ children }) {
   const [lang, setLang] = useState(() => {
+    const pathLang = getLangFromUrlPath();
+    if (pathLang) return pathLang;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLang = urlParams.get('lang');
+      if (urlLang && LANGUAGES[urlLang]) {
+        return urlLang;
+      }
+    } catch (e) {
+      // Fallback
+    }
     return localStorage.getItem('gameskinai_lang') || 'tr';
   });
+
+  // HTML kök etiketinin lang özniteliğini aktif dil ile senkronize et
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang;
+    }
+  }, [lang]);
+
+  // URL değişikliklerini dinle
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const pathLang = getLangFromUrlPath();
+      if (pathLang && pathLang !== lang) {
+        setLang(pathLang);
+        localStorage.setItem('gameskinai_lang', pathLang);
+      }
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, [lang]);
 
   const changeLanguage = useCallback((newLang) => {
     if (LANGUAGES[newLang]) {
       setLang(newLang);
       localStorage.setItem('gameskinai_lang', newLang);
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = newLang;
+      }
+
+      // URL path'ini güncelle (/tr/admin/converter -> /en/admin/converter)
+      try {
+        const currentPath = window.location.pathname;
+        const segments = currentPath.split('/').filter(Boolean);
+        
+        let newPath = '';
+        if (segments.length > 0 && LANGUAGES[segments[0]]) {
+          segments[0] = newLang;
+          newPath = '/' + segments.join('/');
+        } else {
+          newPath = '/' + newLang + (currentPath.startsWith('/') ? currentPath : '/' + currentPath);
+        }
+
+        if (window.location.search) {
+          newPath += window.location.search;
+        }
+
+        window.history.pushState({}, '', newPath);
+      } catch (e) {
+        // yoksay
+      }
     }
   }, []);
 
@@ -217,3 +359,5 @@ export function TranslationProvider({ children }) {
     </TranslationContext.Provider>
   );
 }
+
+

@@ -32,14 +32,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      // Demo modu: Supabase yapılandırılmamış, demo kullanıcı oluştur
-      setUser({
-        id: 'demo-user-id',
-        email: 'demo@gameskinai.com',
-        user_metadata: {
-          display_name: 'Demo Kullanıcı',
-        },
-      });
+      // Demo modu: Sadece development ortamında demo kullanıcı otomatik tanımlanır.
+      // Production'da otantikasyon baypasına yol açmaması için varsayılan olarak null atanır.
+      if (process.env.NODE_ENV === 'development') {
+        setUser({
+          id: 'demo-user-id',
+          email: 'demo@gameskinai.com',
+          user_metadata: {
+            display_name: 'Demo Kullanıcı',
+          },
+        });
+      } else {
+        setUser(null);
+      }
       setLoading(false);
       return;
     }
@@ -78,19 +83,21 @@ export function AuthProvider({ children }) {
    * Email ve şifre ile giriş yapar.
    */
   const signIn = async (email, password) => {
+    const normalizedEmail = email?.trim().toLowerCase();
+
     if (!isSupabaseConfigured) {
       // Demo modu
       setUser({
         id: 'demo-user-id',
-        email: email,
-        user_metadata: { display_name: email.split('@')[0] },
+        email: normalizedEmail,
+        user_metadata: { display_name: normalizedEmail.split('@')[0] },
       });
-      return { data: { user: { email } }, error: null };
+      return { data: { user: { email: normalizedEmail } }, error: null };
     }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizedEmail,
         password,
       });
       if (error) throw error;
@@ -104,17 +111,19 @@ export function AuthProvider({ children }) {
    * Email, şifre ve görünen ad ile kayıt yapar.
    */
   const signUp = async (email, password, displayName) => {
+    const normalizedEmail = email?.trim().toLowerCase();
+
     if (!isSupabaseConfigured) {
       // Demo modu
       return {
-        data: { user: { email } },
+        data: { user: { email: normalizedEmail } },
         error: null,
       };
     }
 
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -201,6 +210,27 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * E-posta adresi ile şifre sıfırlama bağlantısı gönderir.
+   */
+  const resetPassword = async (email) => {
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!isSupabaseConfigured) {
+      return { data: {}, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: window.location.origin + '/auth/sign-in',
+      });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -209,6 +239,7 @@ export function AuthProvider({ children }) {
     signOut,
     signInWithGoogle,
     signInWithDiscord,
+    resetPassword,
     isDemo: !isSupabaseConfigured,
   };
 
@@ -216,3 +247,4 @@ export function AuthProvider({ children }) {
 }
 
 export default AuthContext;
+

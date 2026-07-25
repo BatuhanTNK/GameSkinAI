@@ -11,7 +11,9 @@ import Card from 'components/card';
 import MinecraftSkinPreview from './MinecraftSkinPreview';
 import { parseConversionDescription } from 'lib/skinDataParser';
 import ComparisonSlider from './ComparisonSlider';
+import ShareButtons from './ShareButtons';
 import { useTranslation } from 'contexts/TranslationContext';
+
 
 /**
  * Tarih formatlama yardımcı fonksiyonu.
@@ -323,8 +325,15 @@ export default function ConversionResult({
           </p>
         </div>
 
+        {/* Paylaşım Butonları */}
+        <div className="mb-4 flex items-center justify-between border-t border-b border-gray-100 py-3 dark:border-white/10">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Sosyal Medyada Paylaş:</span>
+          <ShareButtons title={result.theme_label} text={descriptionText} />
+        </div>
+
         {/* Aksiyon butonları */}
         <div className="flex flex-wrap gap-3">
+
           {result.result_image_url && (
             <button
               type="button"

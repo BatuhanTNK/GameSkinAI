@@ -27,7 +27,6 @@ root.render(
   </BrowserRouter>
 );
 
-// If you want your app to work offline and load faster, you can change
-// unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: https://cra.link/PWA
-serviceWorkerRegistration.register();
+// Service worker'ı devre dışı bırakıyoruz ki yeni güncellemeler ve güvenlik yamaları
+// önbellek bayatlaması nedeniyle kullanıcılara geç ulaşmasın.
+serviceWorkerRegistration.unregister();

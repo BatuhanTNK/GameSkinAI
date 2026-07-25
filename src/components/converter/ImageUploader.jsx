@@ -8,8 +8,11 @@ import React, { useCallback, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useDropzone } from 'react-dropzone';
 import { MdCloudUpload, MdClose, MdImage, MdCameraAlt } from 'react-icons/md';
-import { UPLOAD_LIMITS, MESSAGES } from 'lib/constants';
+import { UPLOAD_LIMITS } from 'lib/constants';
 import CameraCapture from './CameraCapture';
+import { useTranslation } from 'contexts/TranslationContext';
+
+
 
 /**
  * Dosya boyutunu okunabilir formata çevirir.
@@ -45,31 +48,28 @@ export default function ImageUploader({
   disabled,
 }) {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const { t } = useTranslation();
+
   /**
-   * Dosya bırakma/seçme işleyicisi.
+   * Dosya yükleme callback'i.
    */
   const onDrop = useCallback(
-    (acceptedFiles, fileRejections) => {
-      if (fileRejections.length > 0) {
-        const rejection = fileRejections[0];
-        const errorCode = rejection.errors[0]?.code;
-        if (errorCode === 'file-too-large') {
-          onError(MESSAGES.FILE_TOO_LARGE);
-        } else if (errorCode === 'file-invalid-type') {
-          onError(MESSAGES.INVALID_FILE_TYPE);
+    (acceptedFiles, rejectedFiles) => {
+      if (rejectedFiles && rejectedFiles.length > 0) {
+        const rejection = rejectedFiles[0];
+        if (rejection.errors[0]?.code === 'file-too-large') {
+          onFileSelect(null, 'Dosya boyutu 5MB limitini aşıyor.');
         } else {
-          onError('Dosya yüklenirken bir hata oluştu.');
+          onFileSelect(null, 'Desteklenmeyen dosya formatı.');
         }
         return;
       }
 
-      if (acceptedFiles.length > 0) {
-        const selectedFile = acceptedFiles[0];
-        const previewUrl = URL.createObjectURL(selectedFile);
-        onFileSelect(selectedFile, previewUrl);
+      if (acceptedFiles && acceptedFiles.length > 0) {
+        onFileSelect(acceptedFiles[0], null);
       }
     },
-    [onFileSelect, onError]
+    [onFileSelect]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -158,21 +158,21 @@ export default function ImageUploader({
         {/* Metin */}
         {isDragActive ? (
           <p className="text-lg font-semibold text-brand-500 dark:text-brand-400">
-            Fotoğrafı buraya bırakın...
+            {t('uploader.dragActive')}
           </p>
         ) : (
           <>
             <p className="mb-1 text-center text-base font-semibold text-navy-700 dark:text-white">
-              Fotoğrafınızı sürükleyip bırakın
+              {t('uploader.dragInstruction')}
             </p>
             <p className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
-              veya
+              {t('uploader.or')}
             </p>
             <div className="rounded-xl bg-brand-500 px-6 py-2.5 text-sm font-medium text-white transition-all duration-200 group-hover:bg-brand-600">
-              Dosya Seçin
+              {t('uploader.selectFile')}
             </div>
             <p className="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
-              JPEG, PNG veya WebP • Maks. 5MB
+              {t('uploader.specs')}
             </p>
           </>
         )}
@@ -186,7 +186,7 @@ export default function ImageUploader({
           className="flex w-full items-center justify-center gap-2 rounded-[20px] border-2 border-gray-200 bg-white py-3 text-sm font-medium text-navy-700 transition-all duration-200 hover:border-brand-400 hover:bg-brand-500/5 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:border-brand-400/50"
         >
           <MdCameraAlt className="h-5 w-5 text-brand-500" />
-          Kamera ile Çek
+          {t('uploader.btnCamera')}
         </button>
       )}
 

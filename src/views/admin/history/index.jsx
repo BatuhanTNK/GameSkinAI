@@ -10,15 +10,15 @@ import { useConversions } from 'hooks/useConversions';
 import HistoryCard from 'components/converter/HistoryCard';
 import { ROUTES, MESSAGES } from 'lib/constants';
 import { MdAutoAwesome } from 'react-icons/md';
-import MinecraftSkinPreview from 'components/converter/MinecraftSkinPreview';
-import { parseConversionDescription } from 'lib/skinDataParser';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
-import ComparisonSlider from 'components/converter/ComparisonSlider';
+import HistoryDetailModal from 'components/converter/HistoryDetailModal';
+
 
 /**
  * Skeleton kart bileşeni (yükleme sırasında gösterilir).
  */
+
 function SkeletonCard() {
   return (
     <div className="animate-pulse overflow-hidden rounded-[20px] bg-white shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none">
@@ -41,16 +41,29 @@ function SkeletonCard() {
  * Kullanıcının tüm dönüşüm geçmişini gösterir.
  */
 export default function History() {
-  const { conversions, loading, error, deleteConversion, fetchConversions } =
+  const { conversions, loading, error, deleteConversion, fetchConversions, togglePublic } =
     useConversions();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { t } = useTranslation();
 
+  const handleTogglePublic = async (id, currentPublicState) => {
+    const { error: err } = await togglePublic(id, currentPublicState);
+    if (!err) {
+      showToast(
+        !currentPublicState ? 'Toplulukta yayınlandı!' : 'Topluluktan kaldırıldı.',
+        'success'
+      );
+    } else {
+      showToast('İşlem gerçekleştirilemedi.', 'error');
+    }
+  };
+
+
   // Modal State'leri
   const [selectedConversion, setSelectedConversion] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalViewMode, setModalViewMode] = useState('slider'); // 'slider' veya 'split'
+
 
   // Arama, filtreleme, sıralama ve sayfalama state'leri
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,18 +105,6 @@ export default function History() {
     currentPage * itemsPerPage
   );
 
-  // Parse JSON description for modal if it's Minecraft Skin theme
-  const {
-    descriptionText: modalDescriptionText,
-    skinData: modalSkinData,
-    skinImageUrl: modalSkinImageUrl,
-    isMinecraft: isModalMinecraft,
-  } = selectedConversion
-    ? parseConversionDescription(
-        selectedConversion.result_description || '',
-        selectedConversion.theme_slug
-      )
-    : { descriptionText: '', skinData: null, skinImageUrl: null, isMinecraft: false };
 
   /**
    * Dönüşüm silme işleyicisi.
@@ -260,8 +261,10 @@ export default function History() {
                 conversion={conversion}
                 onDelete={handleDelete}
                 onView={handleView}
+                onTogglePublic={handleTogglePublic}
               />
             ))}
+
           </div>
 
           {/* Sayfalama (Pagination) */}
@@ -305,209 +308,13 @@ export default function History() {
       )}
 
       {/* Detay Modalı */}
-      {isModalOpen && selectedConversion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl overflow-hidden rounded-[20px] bg-white shadow-2xl dark:bg-navy-800 transition-all duration-300 max-h-[90vh] flex flex-col">
-            {/* Modal Başlık */}
-            <div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-white/10">
-              <div>
-                <h3 className="text-xl font-bold text-navy-700 dark:text-white">
-                  {selectedConversion.theme_label}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Intl.DateTimeFormat('tr-TR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }).format(new Date(selectedConversion.created_at))}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal İçerik (Scrollable) */}
-            <div className="overflow-y-auto p-6 flex-1">
-              {/* Görsel Modu Seçici */}
-              {selectedConversion.original_image_url && selectedConversion.result_image_url && (
-                <div className="mb-4 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalViewMode('slider')}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                      modalViewMode === 'slider'
-                        ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-navy-700 dark:text-gray-300 dark:hover:bg-navy-600'
-                    }`}
-                  >
-                    {t('result.viewSlider')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalViewMode('split')}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                      modalViewMode === 'split'
-                        ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-navy-700 dark:text-gray-300 dark:hover:bg-navy-600'
-                    }`}
-                  >
-                    {t('result.viewSplit')}
-                  </button>
-                </div>
-              )}
-
-              {/* Resim Karşılaştırma */}
-              {(selectedConversion.original_image_url || selectedConversion.result_image_url) && (
-                <>
-                  {modalViewMode === 'slider' && selectedConversion.original_image_url && selectedConversion.result_image_url ? (
-                    <div className="mb-6">
-                      {isModalMinecraft ? (
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-3">
-                          <div className="md:col-span-2 max-w-xl mx-auto w-full">
-                            <ComparisonSlider
-                              beforeImage={selectedConversion.original_image_url}
-                              afterImage={selectedConversion.result_image_url}
-                            />
-                          </div>
-                          <div className="md:col-span-1 flex flex-col justify-center">
-                            <MinecraftSkinPreview skinData={modalSkinData} skinImageUrl={modalSkinImageUrl} />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="max-w-xl mx-auto w-full">
-                          <ComparisonSlider
-                            beforeImage={selectedConversion.original_image_url}
-                            afterImage={selectedConversion.result_image_url}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className={`mb-6 grid grid-cols-1 gap-6 ${isModalMinecraft ? 'lg:grid-cols-3 md:grid-cols-3' : 'md:grid-cols-2'}`}>
-                      {selectedConversion.original_image_url && (
-                        <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
-                          <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            {t('uploader.originalPhoto')}
-                          </span>
-                          <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
-                            <img
-                              src={selectedConversion.original_image_url}
-                              alt="Orijinal"
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedConversion.result_image_url && (
-                        <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
-                          <span className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-500">
-                            {t('result.aiCharacter')}
-                          </span>
-                          <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
-                            <img
-                              src={selectedConversion.result_image_url}
-                              alt="AI Karakteri"
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Minecraft Oyuncu Skini (Eğer Minecraft teması ise) */}
-                      {isModalMinecraft && (
-                        <MinecraftSkinPreview skinData={modalSkinData} skinImageUrl={modalSkinImageUrl} />
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Açıklama */}
-              <div className="rounded-xl bg-lightPrimary p-4 dark:bg-navy-700">
-                <h5 className="mb-2 text-sm font-bold text-navy-700 dark:text-white">
-                  {t('result.descTitle')}
-                </h5>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-navy-700 dark:text-gray-300">
-                  {modalDescriptionText}
-                </p>
-              </div>
-            </div>
-
-            {/* Modal Butonlar */}
-            <div className="flex flex-wrap gap-3 border-t border-gray-100 p-6 dark:border-white/10 bg-gray-50 dark:bg-navy-900/30">
-              {selectedConversion.result_image_url && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const url = selectedConversion.result_image_url;
-                      if (url.startsWith('data:')) {
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `gameskin_${selectedConversion.theme_slug || 'result'}_${selectedConversion.id.substring(0, 8)}.jpg`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        return;
-                      }
-                      const response = await fetch(url);
-                      const blob = await response.blob();
-                      const blobUrl = URL.createObjectURL(blob);
-                      const link = document.createElement('a');
-                      link.href = blobUrl;
-                      link.download = `gameskin_${selectedConversion.theme_slug || 'result'}_${selectedConversion.id.substring(0, 8)}.jpg`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(blobUrl);
-                    } catch (err) {
-                      window.open(selectedConversion.result_image_url, '_blank');
-                    }
-                  }}
-                  className="flex items-center gap-2 rounded-xl bg-green-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-green-600"
-                >
-                  {t('result.btnDownloadImage')}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  const content = `GameSkinAI - ${selectedConversion.theme_label} Sonucu\n${'='.repeat(50)}\n\n--- Karakter Açıklaması ---\n\n${modalDescriptionText}`;
-                  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `gameskinai_${selectedConversion.theme_slug}_${selectedConversion.id.substring(0, 8)}.txt`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                }}
-                className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-brand-600"
-              >
-                {t('result.btnDownloadText')}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="ml-auto rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-navy-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:bg-navy-700"
-              >
-                {t('common.close')}
-              </button>
-            </div>
-          </div>
-        </div>
+      {isModalOpen && (
+        <HistoryDetailModal
+          conversion={selectedConversion}
+          onClose={() => setIsModalOpen(false)}
+        />
       )}
     </div>
   );
 }
+

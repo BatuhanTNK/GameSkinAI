@@ -18,8 +18,10 @@ import {
   FaShieldAlt,
 } from 'react-icons/fa';
 import { THEMES } from 'lib/themes';
+import { useTranslation } from 'contexts/TranslationContext';
 
 /** İkon isimlerini React bileşenlerine eşler */
+
 const ICON_MAP = {
   FaCube: FaCube,
   FaGamepad: FaGamepad,
@@ -93,6 +95,7 @@ const COLOR_MAP = {
  * @param {boolean} props.disabled - Seçim devre dışı mı
  */
 export default function ThemeSelector({ selectedTheme, onSelect, disabled, themes = [] }) {
+  const { lang } = useTranslation();
   const themesToDisplay = themes && themes.length > 0 ? themes : THEMES;
 
   return (
@@ -101,6 +104,7 @@ export default function ThemeSelector({ selectedTheme, onSelect, disabled, theme
         const IconComponent = ICON_MAP[theme.icon];
         const colors = COLOR_MAP[theme.color] || COLOR_MAP.purple;
         const isSelected = selectedTheme === theme.slug;
+        const descriptionText = lang === 'en' ? (theme.description_en || theme.description) : theme.description;
 
         return (
           <button
@@ -161,7 +165,7 @@ export default function ThemeSelector({ selectedTheme, onSelect, disabled, theme
 
             {/* Açıklama */}
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              {theme.description}
+              {descriptionText}
             </p>
           </button>
         );
@@ -169,6 +173,7 @@ export default function ThemeSelector({ selectedTheme, onSelect, disabled, theme
     </div>
   );
 }
+
 
 ThemeSelector.propTypes = {
   selectedTheme: PropTypes.string,

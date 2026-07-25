@@ -10,7 +10,7 @@ export function SidebarLinks(props) {
   let location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
 
   const { routes } = props;
 
@@ -24,7 +24,7 @@ export function SidebarLinks(props) {
    */
   const handleSignOut = async () => {
     await signOut();
-    navigate("/auth/sign-in");
+    navigate(`/${lang}/auth/sign-in`);
   };
 
   const createLinks = (routes) => {
@@ -37,7 +37,8 @@ export function SidebarLinks(props) {
           : route.name;
 
         return (
-          <Link key={index} to={route.layout + "/" + route.path}>
+          <Link key={index} to={`/${lang}${route.layout}/${route.path}`}>
+
             <div className="relative mb-3 flex hover:cursor-pointer">
               <li
                 className="my-[3px] flex cursor-pointer items-center px-8"

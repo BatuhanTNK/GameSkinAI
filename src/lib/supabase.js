@@ -107,13 +107,14 @@ export async function uploadImage(file, bucketName = 'conversions') {
   }
 
   const fileExt = file.name.split('.').pop() || 'jpg';
-  const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+  const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+  const fileName = `${uuid}-${Date.now()}.${fileExt}`;
   const filePath = `${fileName}`;
 
   try {
     const { error } = await supabase.storage
       .from(bucketName)
-      .upload(filePath, file);
+      .upload(filePath, file, { upsert: false });
 
     if (error) {
       console.error('Supabase Storage yükleme hatası, yerel URL kullanılıyor:', error);
@@ -191,4 +192,27 @@ export async function fetchThemes() {
     return [];
   }
 }
+
+/**
+ * Supabase Edge Function çağırır.
+ * @param {string} functionName - Çağrılacak fonksiyon adı (ör. 'convert')
+ * @param {Object} body - Fonksiyona gönderilecek body
+ * @returns {Promise<Object>} Fonksiyondan dönen veri
+ */
+export async function invokeEdgeFunction(functionName, body) {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase yapılandırılmamış.');
+  }
+
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body,
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Edge Function çağrısı başarısız oldu.');
+  }
+
+  return data;
+}
+
 

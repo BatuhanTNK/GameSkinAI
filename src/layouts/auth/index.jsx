@@ -3,8 +3,11 @@ import authImg from "assets/img/auth/auth.png";
 import { Link, Routes, Route, Navigate } from "react-router-dom";
 import routes from "routes.js";
 import FixedPlugin from "components/fixedPlugin/FixedPlugin";
+import { useTranslation } from "contexts/TranslationContext";
 
 export default function Auth() {
+  const { t } = useTranslation();
+
   const getRoutes = (routes) => {
     return routes.map((prop, key) => {
       if (prop.layout === "/auth") {
@@ -40,10 +43,11 @@ export default function Auth() {
                       />
                     </svg>
                     <p className="ml-3 text-sm text-gray-600">
-                      Dashboard'a Dön
+                      {t('auth.backToDashboard')}
                     </p>
                   </div>
                 </Link>
+
                 <Routes>
                   {getRoutes(routes)}
                   <Route
