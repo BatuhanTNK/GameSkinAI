@@ -287,12 +287,16 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
 
             {/* ─── FLAT TEXTURE HARİTASI ─── */}
             <div className={showFlatTexture ? 'flex flex-col items-center gap-2' : 'hidden'}>
-              <img
-                src={skinDataUrl}
-                alt="Flat Texture Map"
-                className="h-40 w-40 object-contain border-2 border-dashed border-gray-300 dark:border-navy-700 p-2"
-                style={{ imageRendering: 'pixelated' }}
-              />
+              {skinDataUrl ? (
+                <img
+                  src={skinDataUrl}
+                  alt="Flat Texture Map"
+                  className="h-40 w-40 object-contain border-2 border-dashed border-gray-300 dark:border-navy-700 p-2"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              ) : (
+                <div className="h-40 w-40 animate-pulse rounded-lg bg-gray-200 dark:bg-navy-800" />
+              )}
               <span className="text-[10px] text-gray-400">
                 64x64 Pixel Düz Kaplama Haritası
               </span>
