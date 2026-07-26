@@ -170,10 +170,11 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      const activeLang = localStorage.getItem('gameskinai_lang') || 'tr';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/admin/converter',
+          redirectTo: `${window.location.origin}/${activeLang}/admin/converter`,
         },
       });
       if (error) throw error;
