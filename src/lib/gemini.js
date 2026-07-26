@@ -269,72 +269,96 @@ function sharpenImageData(imageData) {
  * Dosya objesini yükler, maksimum 800px olacak şekilde boyutlandırır,
  * görüntünün netliğini artırmak için keskinleştirme filtresi uygular
  * ve Base64 string olarak döner.
- * @param {File} file - Yüklenecek dosya
+ * Mobil uyumluluk için alternatif okuma yöntemleri içerir.
+ * @param {File|Blob} file - Yüklenecek dosya
  * @returns {Promise<{base64: string, mimeType: string}>} Netleştirilmiş Base64 verisi ve MIME tipi
  */
-export function fileToBase64(file) {
+export async function fileToBase64(file) {
+  const mimeType = file.type || 'image/jpeg';
+
+  // Dosyayı Data URL olarak oku (birden fazla yöntem dene)
+  let rawDataUrl;
+  try {
+    rawDataUrl = await readFileAsDataUrl(file);
+  } catch (primaryErr) {
+    console.warn('FileReader başarısız oldu, arrayBuffer yöntemi deneniyor:', primaryErr);
+    try {
+      // Fallback: arrayBuffer üzerinden oku
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      // Chunk halinde işle (mobilde büyük dosyalar için stack overflow önlemi)
+      const chunkSize = 8192;
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      const base64Raw = btoa(binary);
+      rawDataUrl = `data:${mimeType};base64,${base64Raw}`;
+    } catch (fallbackErr) {
+      console.error('Tüm dosya okuma yöntemleri başarısız:', fallbackErr);
+      throw new Error('Dosya okunamadı. Lütfen fotoğrafı tekrar seçip deneyin.');
+    }
+  }
+
+  // Resim işleme (boyutlandır + keskinleştir)
+  try {
+    const img = await loadImage(rawDataUrl);
+
+    // Maksimum 800px sınırıyla yeniden boyutlandır (Aspect Ratio koruyarak)
+    const maxDim = 800;
+    let width = img.width;
+    let height = img.height;
+
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // Resmi çiz
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // Keskinleştirme Filtresi Uygula
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const sharpenedData = sharpenImageData(imageData);
+    ctx.putImageData(sharpenedData, 0, 0);
+
+    // Netleştirilmiş resmi Base64'e dönüştür
+    const sharpenedBase64 = canvas.toDataURL(mimeType).split(',')[1];
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Fotoğraf netleştirildi ve optimize edildi. Çözünürlük: ${width}x${height}`);
+    }
+
+    return { base64: sharpenedBase64, mimeType };
+  } catch (err) {
+    console.warn('Görüntü netleştirme işlemi başarısız oldu, orijinal görsel kullanılıyor:', err);
+    // Hata durumunda orijinal okunan base64 ile devam et
+    const base64String = rawDataUrl.split(',')[1];
+    return { base64: base64String, mimeType };
+  }
+}
+
+/**
+ * FileReader ile dosyayı Data URL olarak okur.
+ * @param {File|Blob} file
+ * @returns {Promise<string>} Data URL
+ */
+function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const rawDataUrl = reader.result;
-        
-        // 1. Resim nesnesini yükle
-        const img = await loadImage(rawDataUrl);
-        
-        // 2. Maksimum 800px sınırıyla yeniden boyutlandır (Aspect Ratio koruyarak)
-        const maxDim = 800;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        
-        // Resmi çiz
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // 3. Keskinleştirme Filtresi Uygula
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const sharpenedData = sharpenImageData(imageData);
-        ctx.putImageData(sharpenedData, 0, 0);
-        
-        // 4. Netleştirilmiş resmi Base64'e dönüştür
-        const mimeType = file.type || 'image/jpeg';
-        const sharpenedBase64 = canvas.toDataURL(mimeType).split(',')[1];
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`Fotoğraf netleştirildi ve optimize edildi. Çözünürlük: ${width}x${height}`);
-        }
-        
-        resolve({
-          base64: sharpenedBase64,
-          mimeType: mimeType,
-        });
-      } catch (err) {
-        console.warn('Görüntü netleştirme işlemi başarısız oldu, orijinal görsel kullanılıyor:', err);
-        // Hata durumunda orijinal okunan base64 ile devam et
-        const base64String = reader.result.split(',')[1];
-        resolve({
-          base64: base64String,
-          mimeType: file.type,
-        });
-      }
-    };
-    reader.onerror = () => {
-      reject(new Error('Dosya okunamadı. Lütfen tekrar deneyin.'));
-    };
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('FileReader hatası'));
     reader.readAsDataURL(file);
   });
 }

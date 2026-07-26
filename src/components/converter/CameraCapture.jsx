@@ -130,7 +130,7 @@ export default function CameraCapture({ isOpen, onClose, onCapture }) {
     const blob = new Blob([ab], { type: mimeType });
     const file = new File([blob], `camera-${Date.now()}.jpg`, { type: mimeType });
 
-    onCapture(file, capturedImage);
+    onCapture(file, null);
     onClose();
   };
 

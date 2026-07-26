@@ -96,13 +96,59 @@ export default function Converter() {
 
   /**
    * Dosya seçim işleyicisi.
-   * @param {File} file - Seçilen dosya
-   * @param {string} preview - Önizleme URL'i
+   * ImageUploader onFileSelect(file, errorMessage) formatında çağırır.
+   * Mobilde dosya referansı kaybolabileceği için veriyi hemen belleğe okur.
+   * @param {File|null} file - Seçilen dosya
+   * @param {string|null} errorMessage - Hata mesajı (varsa)
    */
-  const handleFileSelect = (file, preview) => {
-    setUploadedFile(file);
-    setPreviewUrl(preview);
-    setUploadError(null);
+  const handleFileSelect = async (file, errorMessage) => {
+    // Hata varsa sadece hatayı göster
+    if (errorMessage) {
+      setUploadError(errorMessage);
+      setUploadedFile(null);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewUrl(null);
+      return;
+    }
+
+    // Dosya yoksa temizle
+    if (!file) {
+      setUploadedFile(null);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewUrl(null);
+      return;
+    }
+
+    // Önceki preview URL'i temizle
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    try {
+      // Dosya verisini hemen belleğe oku (mobilde dosya referansı kaybolabiliyor)
+      const arrayBuffer = await file.arrayBuffer();
+      const persistedFile = new File([arrayBuffer], file.name, {
+        type: file.type || 'image/jpeg',
+        lastModified: file.lastModified,
+      });
+
+      const newPreviewUrl = URL.createObjectURL(persistedFile);
+      setUploadedFile(persistedFile);
+      setPreviewUrl(newPreviewUrl);
+      setUploadError(null);
+    } catch (err) {
+      console.error('Dosya belleğe okuma hatası, doğrudan referans kullanılıyor:', err);
+      // Fallback: doğrudan dosya referansını kullan
+      const newPreviewUrl = URL.createObjectURL(file);
+      setUploadedFile(file);
+      setPreviewUrl(newPreviewUrl);
+      setUploadError(null);
+    }
+
     // Önceki sonucu temizle
     if (result) {
       setResult(null);
