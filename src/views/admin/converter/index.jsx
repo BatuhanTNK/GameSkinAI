@@ -232,10 +232,35 @@ export default function Converter() {
           let text = aiResult.description.trim();
           // JSON bloğunu ayıkla (varsa önündeki/arkasındaki markdown ve metinleri temizler)
           const firstBrace = text.indexOf('{');
-          const lastBrace = text.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            text = text.substring(firstBrace, lastBrace + 1);
+          if (firstBrace !== -1) {
+            const lastBrace = text.lastIndexOf('}');
+            if (lastBrace > firstBrace) {
+              text = text.substring(firstBrace, lastBrace + 1);
+            } else {
+              text = text.substring(firstBrace);
+            }
           }
+          
+          // Gemini yanıtının sonu kesildiyse tırnak ve süslü parantezi otomatik onar
+          let quoteCount = 0;
+          let inEscape = false;
+          for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            if (char === '\\') {
+              inEscape = !inEscape;
+            } else if (char === '"' && !inEscape) {
+              quoteCount++;
+            } else {
+              inEscape = false;
+            }
+          }
+          if (quoteCount % 2 !== 0) {
+            text += '"';
+          }
+          if (!text.endsWith('}')) {
+            text += '}';
+          }
+
           const parsed = JSON.parse(text);
           
           // Gemini farklı key isimleri kullanabilir - hepsini dene
@@ -266,7 +291,7 @@ export default function Converter() {
             skinData: normalizedSkinData,
           });
         } catch (err) {
-          console.error('Minecraft skin JSON parse error, falling back to regex text parsing:', err);
+          // Kesilen JSON ayrıştırılamazsa sessizce metin yedek ayrıştırıcısını çalıştır
           const fallbackSkinData = parseTextDescriptionToSkinData(aiResult.description);
           finalDescription = JSON.stringify({
             description: aiResult.description,
