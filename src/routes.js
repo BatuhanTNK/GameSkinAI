@@ -15,6 +15,7 @@ import Marketplace from "views/admin/marketplace";
 import SignIn from "views/auth/SignIn";
 import SignUp from "views/auth/SignUp";
 import ForgotPassword from "views/auth/ForgotPassword";
+import ResetPassword from "views/auth/ResetPassword";
 
 // Icon Imports
 import {
@@ -79,6 +80,14 @@ const routes = [
     path: "forgot-password",
     icon: <MdKey className="h-6 w-6" />,
     component: <ForgotPassword />,
+    hidden: true,
+  },
+  {
+    name: "Şifre Sıfırla",
+    layout: "/auth",
+    path: "reset-password",
+    icon: <MdKey className="h-6 w-6" />,
+    component: <ResetPassword />,
     hidden: true,
   },
 ];

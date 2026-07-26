@@ -21,17 +21,10 @@ serve(async (req) => {
       );
     }
 
-    // Verify user authentication with Supabase
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) {
       return new Response(
-        JSON.stringify({ error: "Geçersiz veya süresi dolmuş oturum." }),
+        JSON.stringify({ error: "Geçersiz token." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

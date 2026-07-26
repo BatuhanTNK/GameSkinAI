@@ -222,7 +222,26 @@ export function AuthProvider({ children }) {
 
     try {
       const { data, error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: window.location.origin + '/auth/sign-in',
+        redirectTo: window.location.origin + '/tr/auth/reset-password',
+      });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  };
+
+  /**
+   * Sıfırlama jetonu ile yeni şifreyi günceller.
+   */
+  const updatePassword = async (newPassword) => {
+    if (!isSupabaseConfigured) {
+      return { data: {}, error: null };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
       });
       if (error) throw error;
       return { data, error: null };
@@ -240,6 +259,7 @@ export function AuthProvider({ children }) {
     signInWithGoogle,
     signInWithDiscord,
     resetPassword,
+    updatePassword,
     isDemo: !isSupabaseConfigured,
   };
 

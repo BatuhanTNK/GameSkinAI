@@ -2,44 +2,122 @@
  * @fileoverview Kayıt sayfası.
  * Horizon UI Tailwind şablonunun auth stilini koruyarak
  * Supabase authentication kayıt entegrasyonu sağlar.
+ * TR / EN çoklu dil desteği, kullanıcı adı girişi ve gelişmiş şifre kriteri/önerisi içerir.
  */
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import InputField from 'components/fields/InputField';
 import { useAuth } from 'contexts/AuthContext';
+import { useTranslation } from 'contexts/TranslationContext';
 import { ROUTES, MESSAGES } from 'lib/constants';
+import { HiSparkles, HiCheckCircle, HiXCircle } from 'react-icons/hi2';
 
 /**
  * Kayıt sayfası bileşeni.
- * Ad, email ve şifre ile Supabase kayıt yapar.
+ * Kullanıcı adı, email ve güçlü şifre ile Supabase kayıt yapar.
  */
 export default function SignUp() {
-  const [displayName, setDisplayName] = useState('');
+  const { t } = useTranslation();
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [suggestedNotice, setSuggestedNotice] = useState(false);
   const { signUp } = useAuth();
+
+  // Şifre güvenlik kriterleri kontrolü
+  const pwRequirements = [
+    {
+      key: 'length',
+      labelKey: 'auth.pwReqLength',
+      isValid: password.length >= 8,
+    },
+    {
+      key: 'upper',
+      labelKey: 'auth.pwReqUpper',
+      isValid: /[A-Z]/.test(password),
+    },
+    {
+      key: 'lower',
+      labelKey: 'auth.pwReqLower',
+      isValid: /[a-z]/.test(password),
+    },
+    {
+      key: 'number',
+      labelKey: 'auth.pwReqNumber',
+      isValid: /[0-9]/.test(password),
+    },
+    {
+      key: 'special',
+      labelKey: 'auth.pwReqSpecial',
+      // eslint-disable-next-line no-useless-escape
+      isValid: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    },
+  ];
+
+  const metCount = pwRequirements.filter((r) => r.isValid).length;
+  const isAllPwMet = metCount === pwRequirements.length;
+
+  // Şifre gücü metni ve renk belirleme
+  const getStrengthInfo = () => {
+    if (!password) return { label: '', color: 'bg-gray-200 dark:bg-navy-700', percent: 0 };
+    if (metCount <= 2) return { label: t('auth.pwStrengthWeak'), color: 'bg-red-500', textColor: 'text-red-500', percent: 25 };
+    if (metCount <= 3) return { label: t('auth.pwStrengthMedium'), color: 'bg-amber-500', textColor: 'text-amber-500', percent: 50 };
+    if (metCount <= 4) return { label: t('auth.pwStrengthStrong'), color: 'bg-blue-500', textColor: 'text-blue-500', percent: 75 };
+    return { label: t('auth.pwStrengthVeryStrong'), color: 'bg-emerald-500', textColor: 'text-emerald-500', percent: 100 };
+  };
+
+  const strengthInfo = getStrengthInfo();
+
+  /**
+   * Otomatik Güçlü Şifre Oluşturucu
+   */
+  const handleGeneratePassword = () => {
+    const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lowers = 'abcdefghijkmnopqrstuvwxyz';
+    const numbers = '23456789';
+    const symbols = '!@#$%^&*()_+-=';
+    
+    // Her gruptan en az 1 karakter garantile
+    let chars = [
+      uppers[Math.floor(Math.random() * uppers.length)],
+      lowers[Math.floor(Math.random() * lowers.length)],
+      numbers[Math.floor(Math.random() * numbers.length)],
+      symbols[Math.floor(Math.random() * symbols.length)],
+    ];
+    
+    const all = uppers + lowers + numbers + symbols;
+    for (let i = 0; i < 8; i++) {
+      chars.push(all[Math.floor(Math.random() * all.length)]);
+    }
+    
+    const generated = chars.sort(() => Math.random() - 0.5).join('');
+    setPassword(generated);
+    setConfirmPassword(generated);
+    setSuggestedNotice(true);
+    setTimeout(() => setSuggestedNotice(false), 3500);
+  };
 
   /**
    * Form doğrulama.
    * @returns {string|null} Hata mesajı veya null
    */
   const validateForm = () => {
-    if (!displayName || !email || !password || !confirmPassword) {
-      return 'Lütfen tüm alanları doldurun.';
+    if (!username.trim() || !email.trim() || !password || !confirmPassword) {
+      return t('auth.fillAllFields');
     }
-    if (displayName.length < 2) {
-      return 'İsim en az 2 karakter olmalıdır.';
+    if (username.trim().length < 3) {
+      return t('auth.usernameMinLength');
     }
-    if (password.length < 8) {
-      return 'Şifre en az 8 karakter olmalıdır.';
+    if (!isAllPwMet) {
+      return t('auth.passwordRequirementsNotMet');
     }
     if (password !== confirmPassword) {
-      return 'Şifreler eşleşmiyor.';
+      return t('auth.passwordsDoNotMatch');
     }
     return null;
   };
@@ -59,22 +137,20 @@ export default function SignUp() {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanName = displayName.trim();
+    const cleanUsername = username.trim();
     setIsLoading(true);
 
     try {
       const { error: signUpError } = await signUp(
         cleanEmail,
         password,
-        cleanName
+        cleanUsername
       );
       if (signUpError) {
         const errorMessages = {
-          'User already registered': 'Bu e-posta adresi zaten kayıtlı.',
-          'Password should be at least 6 characters':
-            'Şifre en az 6 karakter olmalıdır.',
-          'Unable to validate email address: invalid format':
-            'Geçersiz e-posta formatı.',
+          'User already registered': t('auth.userAlreadyRegistered'),
+          'Password should be at least 6 characters': t('auth.pwReqLength'),
+          'Unable to validate email address: invalid format': 'Geçersiz e-posta formatı.',
         };
         setError(
           errorMessages[signUpError.message] || MESSAGES.SIGN_UP_ERROR
@@ -114,19 +190,18 @@ export default function SignUp() {
             </svg>
           </div>
 
-          <h4 className="mb-2.5 text-4xl font-bold text-navy-700 dark:text-white">
-            Kayıt Başarılı! 🎉
+          <h4 className="mb-2.5 text-3xl font-bold text-navy-700 dark:text-white">
+            {t('auth.signUpSuccessTitle')}
           </h4>
           <p className="mb-6 text-base text-gray-600 dark:text-gray-400">
-            E-posta adresinize bir doğrulama bağlantısı gönderdik. Lütfen
-            e-postanızı kontrol edin ve hesabınızı doğrulayın.
+            {t('auth.signUpSuccessSubtitle')}
           </p>
 
           <Link
             to={ROUTES.SIGN_IN}
             className="linear flex w-full items-center justify-center rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200"
           >
-            Giriş Sayfasına Dön
+            {t('auth.backToSignIn')}
           </Link>
         </div>
       </div>
@@ -134,18 +209,17 @@ export default function SignUp() {
   }
 
   return (
-    <div className="mt-16 mb-16 flex h-full w-full items-center justify-center px-2 md:mx-0 md:px-0 lg:mb-10 lg:items-center lg:justify-start">
+    <div className="mt-12 mb-16 flex h-full w-full items-center justify-center px-2 md:mx-0 md:px-0 lg:mb-10 lg:items-center lg:justify-start">
       <form
         onSubmit={handleSubmit}
-        className="mt-[10vh] w-full max-w-full flex-col items-center md:pl-4 lg:pl-0 xl:max-w-[420px]"
+        className="mt-[5vh] w-full max-w-full flex-col items-center md:pl-4 lg:pl-0 xl:max-w-[440px]"
       >
         {/* Başlık */}
         <h4 className="mb-2.5 text-4xl font-bold text-navy-700 dark:text-white">
-          Kayıt Ol
+          {t('auth.signUpTitle')}
         </h4>
-        <p className="mb-9 ml-1 text-base text-gray-600">
-          GameSkinAI'ya katılın ve fotoğraflarınızı oyun karakterlerine
-          dönüştürün!
+        <p className="mb-8 ml-1 text-base text-gray-600 dark:text-gray-400">
+          {t('auth.signUpSubtitle')}
         </p>
 
         {/* Hata Mesajı */}
@@ -166,16 +240,16 @@ export default function SignUp() {
           </div>
         )}
 
-        {/* Ad */}
+        {/* Kullanıcı Adı */}
         <InputField
           variant="auth"
           extra="mb-3"
-          label="Ad Soyad*"
-          placeholder="Adınızı girin"
-          id="displayName"
+          label={t('auth.usernameLabel')}
+          placeholder={t('auth.usernamePlaceholder')}
+          id="username"
           type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           disabled={isLoading}
         />
 
@@ -183,8 +257,8 @@ export default function SignUp() {
         <InputField
           variant="auth"
           extra="mb-3"
-          label="E-posta*"
-          placeholder="ornek@email.com"
+          label={t('auth.emailLabel')}
+          placeholder={t('auth.emailPlaceholder')}
           id="email"
           type="email"
           value={email}
@@ -195,9 +269,9 @@ export default function SignUp() {
         {/* Password */}
         <InputField
           variant="auth"
-          extra="mb-3"
-          label="Şifre*"
-          placeholder="Min. 8 karakter"
+          extra="mb-2"
+          label={t('auth.passwordLabel')}
+          placeholder={t('auth.passwordPlaceholder')}
           id="password"
           type="password"
           value={password}
@@ -205,12 +279,79 @@ export default function SignUp() {
           disabled={isLoading}
         />
 
+        {/* Güçlü Şifre Öner / Üret Butonu & Bildirimi */}
+        <div className="mb-3 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleGeneratePassword}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 text-xs font-semibold text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
+            >
+              <HiSparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+              {t('auth.suggestPassword')}
+            </button>
+            {password && (
+              <span className={`text-xs font-bold ${strengthInfo.textColor}`}>
+                {t('auth.pwStrengthTitle')} {strengthInfo.label}
+              </span>
+            )}
+          </div>
+
+          {suggestedNotice && (
+            <div className="rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 dark:bg-green-500/10 dark:text-green-400 flex items-center gap-1.5">
+              <HiCheckCircle className="h-4 w-4 shrink-0" />
+              {t('auth.suggestedPasswordCopied')}
+            </div>
+          )}
+
+          {/* Güç Barı */}
+          {password && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-navy-700">
+              <div
+                className={`h-full transition-all duration-300 ${strengthInfo.color}`}
+                style={{ width: `${strengthInfo.percent}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Güçlü Şifre Kriter Listesi (Checklist) */}
+        <div className="mb-4 rounded-xl border border-gray-200/80 bg-gray-50/50 p-3.5 dark:border-white/10 dark:bg-navy-800/40">
+          <p className="mb-2 text-xs font-bold text-navy-700 dark:text-gray-300">
+            {t('auth.pwReqTitle')}
+          </p>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {pwRequirements.map((req) => (
+              <div
+                key={req.key}
+                className="flex items-center gap-1.5 text-xs transition-colors"
+              >
+                {req.isValid ? (
+                  <HiCheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                ) : (
+                  <HiXCircle className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
+                )}
+                <span
+                  className={
+                    req.isValid
+                      ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }
+                >
+                  {t(req.labelKey)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Confirm Password */}
         <InputField
           variant="auth"
           extra="mb-3"
-          label="Şifre Tekrar*"
-          placeholder="Şifrenizi tekrar girin"
+          label={t('auth.confirmPasswordLabel')}
+          placeholder={t('auth.confirmPasswordPlaceholder')}
           id="confirmPassword"
           type="password"
           value={confirmPassword}
@@ -222,7 +363,7 @@ export default function SignUp() {
         <button
           type="submit"
           disabled={isLoading}
-          className="linear mt-4 flex w-full items-center justify-center rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200"
+          className="linear mt-2 flex w-full items-center justify-center rounded-xl bg-brand-500 py-[12px] text-base font-medium text-white transition duration-200 hover:bg-brand-600 active:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-brand-400 dark:text-white dark:hover:bg-brand-300 dark:active:bg-brand-200"
         >
           {isLoading ? (
             <>
@@ -246,23 +387,23 @@ export default function SignUp() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              Kayıt yapılıyor...
+              {t('auth.signingUp')}
             </>
           ) : (
-            'Kayıt Ol'
+            t('auth.signUpBtn')
           )}
         </button>
 
         {/* Giriş Linki */}
-        <div className="mt-4">
-          <span className="text-sm font-medium text-navy-700 dark:text-gray-600">
-            Zaten hesabınız var mı?
+        <div className="mt-4 text-center">
+          <span className="text-sm font-medium text-navy-700 dark:text-gray-400">
+            {t('auth.alreadyHaveAccount')}
           </span>
           <Link
             to={ROUTES.SIGN_IN}
             className="ml-1 text-sm font-medium text-brand-500 hover:text-brand-600 dark:text-white"
           >
-            Giriş yapın
+            {t('auth.signInLink')}
           </Link>
         </div>
       </form>
