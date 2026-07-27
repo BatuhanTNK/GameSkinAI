@@ -10,6 +10,7 @@ import Converter from "views/admin/converter";
 import History from "views/admin/history";
 import Profile from "views/admin/profile";
 import Marketplace from "views/admin/marketplace";
+import LandingPage from "views/landing";
 
 // Auth Imports
 import SignIn from "views/auth/SignIn";
@@ -26,9 +27,18 @@ import {
   MdLock,
   MdPersonAdd,
   MdKey,
+  MdHome,
 } from "react-icons/md";
 
 const routes = [
+  {
+    name: "Anasayfa / Vitrin",
+    layout: "",
+    path: "",
+    icon: <MdHome className="h-6 w-6" />,
+    component: <LandingPage />,
+    hidden: true,
+  },
   {
     name: "Dönüştürücü",
     layout: "/admin",

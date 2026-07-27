@@ -9,6 +9,7 @@ import { useAuth } from "contexts/AuthContext";
 
 import AdminLayout from "layouts/admin";
 import AuthLayout from "layouts/auth";
+import LandingPage from "views/landing";
 
 /**
  * Korumalı route bileşeni.
@@ -47,6 +48,10 @@ function ProtectedRoute({ children }) {
 const App = () => {
   return (
     <Routes>
+      {/* Anasayfa / Karşılama Rotaları */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path=":lang" element={<LandingPage />} />
+
       {/* URL ile dil desteği (/tr/admin/converter, /en/admin/converter vb.) */}
       <Route path=":lang/auth/*" element={<AuthLayout />} />
       <Route
@@ -68,8 +73,7 @@ const App = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/tr/admin/converter" replace />} />
-      <Route path="*" element={<Navigate to="/tr/admin/converter" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

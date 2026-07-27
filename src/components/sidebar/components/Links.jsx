@@ -30,15 +30,20 @@ export function SidebarLinks(props) {
   const createLinks = (routes) => {
     return routes
       .filter((route) => !route.hidden) // Hidden route'ları filtrele
-      .filter((route) => route.layout === "/admin") // Sadece admin route'ları göster
+      .filter((route) => route.layout === "/admin" || route.layout === "")
       .map((route, index) => {
         const translatedName = t(`nav.${route.path}`) !== `nav.${route.path}` 
           ? t(`nav.${route.path}`) 
           : route.name;
 
-        return (
-          <Link key={index} to={`/${lang}${route.layout}/${route.path}`}>
+        const targetPath = route.layout === "" ? `/${lang}` : `/${lang}${route.layout}/${route.path}`;
+        const isLandingLink = route.layout === "";
+        const isActive = isLandingLink 
+          ? (location.pathname === `/${lang}` || location.pathname === "/") 
+          : activeRoute(route.path);
 
+        return (
+          <Link key={index} to={targetPath}>
             <div className="relative mb-3 flex hover:cursor-pointer">
               <li
                 className="my-[3px] flex cursor-pointer items-center px-8"
@@ -46,7 +51,7 @@ export function SidebarLinks(props) {
               >
                 <span
                   className={`${
-                    activeRoute(route.path) === true
+                    isActive === true
                       ? "font-bold text-brand-500 dark:text-white"
                       : "font-medium text-gray-600"
                   }`}
@@ -55,7 +60,7 @@ export function SidebarLinks(props) {
                 </span>
                 <p
                   className={`leading-1 ml-4 flex ${
-                    activeRoute(route.path) === true
+                    isActive === true
                       ? "font-bold text-navy-700 dark:text-white"
                       : "font-medium text-gray-600"
                   }`}
@@ -63,7 +68,7 @@ export function SidebarLinks(props) {
                   {translatedName}
                 </p>
               </li>
-              {activeRoute(route.path) ? (
+              {isActive ? (
                 <div className="absolute right-0 top-px h-9 w-1 rounded-lg bg-brand-500 dark:bg-brand-400" />
               ) : null}
             </div>
