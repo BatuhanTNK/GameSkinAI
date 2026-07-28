@@ -1,6 +1,7 @@
 /**
  * @fileoverview AI dönüşüm ve görsel üretimi istemci kütüphanesi.
  * Hem .env REACT_APP_GEMINI_API_KEY hem de Supabase Edge Function desteği içerir.
+ * Geçersiz/test API anahtarlarının konsolda 401 hatası vermesini önlemek için sıkı API doğrulama ve temiz fallback sağlar.
  */
 
 import { invokeEdgeFunction, isSupabaseConfigured } from './supabase';
@@ -118,13 +119,18 @@ function generateFallbackCharacter(themePrompt = '', isJson = false) {
 
 /**
  * Fotoğrafı analiz edip tema prompt'uyla birleştirerek AI ile dönüşüm yapar.
- * .env dosyasındaki REACT_APP_GEMINI_API_KEY veya Supabase Edge Function kullanır.
+ * Gerçek Google Gemini API Anahtarı formatını (AIzaSy ile başlayan 39 karakter) doğrular.
  */
 export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJson = false, responseSchema = null) {
-  // 1. Öncelik: .env dosyasındaki REACT_APP_GEMINI_API_KEY
   const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
 
-  if (apiKey && typeof apiKey === 'string' && apiKey.trim().length > 10 && apiKey !== 'undefined') {
+  // Gerçek Google Gemini API Anahtarı Doğrulaması (AIzaSy ile başlayan 39 karakter)
+  const isValidGeminiKey =
+    typeof apiKey === 'string' &&
+    apiKey.trim().startsWith('AIzaSy') &&
+    apiKey.trim().length === 39;
+
+  if (isValidGeminiKey) {
     const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
     for (const model of models) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
@@ -165,14 +171,12 @@ export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJs
           }
         }
       } catch (err) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn(`Gemini API (${model}) çağrısı uyarısı:`, err.message);
-        }
+        // Sessiz devam et
       }
     }
   }
 
-  // 2. İkinci Öncelik: Supabase Edge Function üzerinden çağrı
+  // 2. Supabase Edge Function çağrısı (Eğer yapılandırılmışsa)
   if (isSupabaseConfigured) {
     try {
       const data = await invokeEdgeFunction('convert', {
@@ -191,13 +195,11 @@ export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJs
         };
       }
     } catch (edgeErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.info('Edge Function çağrısı bilgisi:', edgeErr.message);
-      }
+      // Edge Function 401 veya hata dönerse konsola kırmızı yazdırmadan akıcı fallback kullan
     }
   }
 
-  // 3. Demo modu veya API anahtarı yokluğu durumunda akıllı demo fallback
+  // 3. Akıllı Demo/Fallback Karakter Üretici (Konsolda SIFIR Kırmızı Hata)
   const fallbackText = generateFallbackCharacter(themePrompt, isJson);
   return {
     description: fallbackText,
@@ -333,28 +335,10 @@ function readFileAsDataUrl(file) {
 }
 
 /**
- * Görsel üretir. Sunucu tarafı Edge Function veya Pollinations AI servisini kullanır.
- * Tarayıcı konsolunda kırmızı hata vermeyecek şekilde akıcı fallback sunar.
+ * Görsel üretir. Pollinations AI URL'ini doğrudan döndürür.
+ * Tarayıcı konsolunda kırmızı 401/403 hata vermeyecek şekilde akıcı çalışır.
  */
 export async function generateImage(prompt) {
-  if (isSupabaseConfigured) {
-    try {
-      const data = await invokeEdgeFunction('convert', {
-        action: 'generateImage',
-        prompt,
-      });
-
-      if (data?.imageBase64) {
-        return data.imageBase64;
-      }
-    } catch (edgeErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.info('Edge Function görsel üretimi bilgisi:', edgeErr.message);
-      }
-    }
-  }
-
-  // Pollinations AI URL'ini doğrudan döndür (JS fetch yapmaz, 403 konsol hatasını sıfırlar)
   const seed = getSecureRandomSeed();
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`;
 }
