@@ -7,35 +7,34 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { MdDelete, MdVisibility } from 'react-icons/md';
-import {
-  FaCube,
-  FaGamepad,
-  FaUserAstronaut,
-  FaDragon,
-  FaSeedling,
-} from 'react-icons/fa';
+import { FaCube } from 'react-icons/fa';
 import Card from 'components/card';
 import { CONVERSION_STATUS } from 'lib/constants';
 import { parseConversionDescription } from 'lib/skinDataParser';
 import { useTranslation } from 'contexts/TranslationContext';
-
-
-/** Tema slug'ını ikon bileşenine eşler */
-const THEME_ICON_MAP = {
-  minecraft: FaCube,
-  roblox: FaGamepad,
-  'among-us': FaUserAstronaut,
-  'pixel-rpg': FaDragon,
-  stardew: FaSeedling,
-};
+import { getGameLogo } from './GameLogos';
 
 /** Tema slug'ını renk sınıfına eşler */
 const THEME_COLOR_MAP = {
-  minecraft: 'from-green-400 to-emerald-500',
-  roblox: 'from-red-400 to-rose-500',
-  'among-us': 'from-purple-400 to-violet-500',
-  'pixel-rpg': 'from-yellow-400 to-amber-500',
-  stardew: 'from-teal-400 to-cyan-500',
+  minecraft: 'from-green-500 to-emerald-600',
+  roblox: 'from-red-500 to-rose-600',
+  'among-us': 'from-purple-500 to-violet-600',
+  'pixel-rpg': 'from-yellow-500 to-amber-600',
+  stardew: 'from-teal-500 to-cyan-600',
+  fortnite: 'from-blue-500 to-indigo-600',
+  'gta-sa': 'from-orange-500 to-amber-600',
+  pokemon: 'from-red-500 to-rose-600',
+  valorant: 'from-purple-500 to-indigo-600',
+  'brawl-stars': 'from-purple-600 to-indigo-700',
+  'clash-royale': 'from-amber-500 to-yellow-600',
+  lol: 'from-blue-600 to-cyan-700',
+  apex: 'from-red-600 to-orange-700',
+  lego: 'from-yellow-400 to-amber-500',
+  'fall-guys': 'from-pink-500 to-rose-600',
+  genshin: 'from-teal-400 to-emerald-600',
+  cyberpunk: 'from-yellow-400 to-cyan-500',
+  witcher: 'from-slate-700 to-gray-900',
+  cs2: 'from-emerald-700 to-green-900',
 };
 
 /** Durum badge renkleri */
@@ -50,16 +49,13 @@ const STATUS_STYLES = {
     'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
 };
 
-
-
 /**
  * Tarih formatlama yardımcı fonksiyonu.
- * @param {string} dateStr - ISO tarih string'i
- * @returns {string} Formatlanmış tarih
  */
-const formatDate = (dateStr) => {
+const formatDate = (dateStr, lang = 'tr') => {
   if (!dateStr) return '';
-  return new Intl.DateTimeFormat('tr-TR', {
+  const dateLocale = lang === 'en' ? 'en-US' : 'tr-TR';
+  return new Intl.DateTimeFormat(dateLocale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -70,17 +66,13 @@ const formatDate = (dateStr) => {
 
 /**
  * Geçmiş dönüşüm kartı bileşeni.
- * @param {Object} props
- * @param {Object} props.conversion - Dönüşüm verisi
- * @param {Function} props.onDelete - Silme callback'i
- * @param {Function} props.onView - Detay görüntüleme callback'i
  */
 export default function HistoryCard({ conversion, onDelete, onView, onTogglePublic }) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showFull, setShowFull] = useState(false);
 
-  const IconComponent = THEME_ICON_MAP[conversion.theme_slug] || FaCube;
+  const gameLogo = getGameLogo(conversion.theme_slug, "h-5 w-5");
   const gradientColor =
     THEME_COLOR_MAP[conversion.theme_slug] || 'from-brand-400 to-brand-600';
 
@@ -97,9 +89,6 @@ export default function HistoryCard({ conversion, onDelete, onView, onTogglePubl
 
   const displayImage = conversion.result_image_url || conversion.original_image_url;
 
-  /**
-   * Silme işleyicisi.
-   */
   const handleDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
@@ -117,15 +106,15 @@ export default function HistoryCard({ conversion, onDelete, onView, onTogglePubl
       <div
         className={`flex items-center gap-3 bg-gradient-to-r ${gradientColor} px-5 py-3`}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
-          <IconComponent className="h-4 w-4 text-white" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+          {gameLogo || <FaCube className="h-4 w-4 text-white" />}
         </div>
-        <div className="flex-1">
-          <h4 className="text-sm font-bold text-white">
+        <div className="flex-1 truncate">
+          <h4 className="text-sm font-bold text-white truncate">
             {conversion.theme_label}
           </h4>
           <p className="text-xs text-white/70">
-            {formatDate(conversion.created_at)}
+            {formatDate(conversion.created_at, lang)}
           </p>
         </div>
         {/* Durum badge */}
@@ -230,7 +219,6 @@ export default function HistoryCard({ conversion, onDelete, onView, onTogglePubl
   );
 }
 
-
 HistoryCard.propTypes = {
   conversion: PropTypes.shape({
     id: PropTypes.string.isRequired,
@@ -252,4 +240,3 @@ HistoryCard.defaultProps = {
   onView: null,
   onTogglePublic: null,
 };
-

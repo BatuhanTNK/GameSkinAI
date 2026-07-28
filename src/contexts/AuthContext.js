@@ -1,7 +1,7 @@
 /**
  * @fileoverview Kimlik doğrulama context'i.
- * Supabase Auth ile kullanıcı giriş/çıkış/kayıt işlemlerini yönetir.
- * Supabase yapılandırılmamışsa demo modunda çalışır.
+ * Supabase Auth ile kullanıcı giriş/çıkış/kayıt/profil güncelleme işlemlerini yönetir.
+ * Yerel profil verilerini localStorage ile saklayarak F5 yenilemelerinde korunmasını sağlar.
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -11,7 +11,7 @@ const AuthContext = createContext(null);
 
 /**
  * Auth context hook'u.
- * @returns {Object} user, loading, signIn, signUp, signOut, isDemo
+ * @returns {Object} user, loading, signIn, signUp, signOut, updateProfile, updatePassword, isDemo
  */
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -20,6 +20,32 @@ export const useAuth = () => {
   }
   return context;
 };
+
+/**
+ * Yerel olarak saklanan profil metadatasını okur.
+ */
+function getLocalUserMetadata() {
+  try {
+    const stored = localStorage.getItem('gameskinai_user_metadata');
+    return stored ? JSON.parse(stored) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
+ * Yerel profil metadatasını kaydeder.
+ */
+function saveLocalUserMetadata(updates) {
+  try {
+    const current = getLocalUserMetadata();
+    const merged = { ...current, ...updates };
+    localStorage.setItem('gameskinai_user_metadata', JSON.stringify(merged));
+    return merged;
+  } catch (e) {
+    return updates;
+  }
+}
 
 /**
  * Auth Provider bileşeni.
@@ -31,16 +57,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const localMeta = getLocalUserMetadata();
+
     if (!isSupabaseConfigured) {
-      // Demo modu: Sadece development ortamında demo kullanıcı otomatik tanımlanır.
-      // Production'da otantikasyon baypasına yol açmaması için varsayılan olarak null atanır.
       if (process.env.NODE_ENV === 'development') {
         setUser({
           id: 'demo-user-id',
           email: 'demo@gameskinai.com',
           user_metadata: {
-            display_name: 'Demo Kullanıcı',
+            display_name: 'Batuhan Tonk',
+            bio: 'Oyun tutkunu ve AI skin geliştiricisi.',
+            favorite_game: 'minecraft',
+            avatar_preset: 'minecraft',
+            ...localMeta,
           },
+          created_at: '2026-06-26T10:00:00.000Z',
         });
       } else {
         setUser(null);
@@ -55,7 +86,32 @@ export function AuthProvider({ children }) {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          setUser({
+            ...session.user,
+            user_metadata: {
+              ...session.user.user_metadata,
+              ...localMeta,
+            },
+          });
+        } else if (process.env.NODE_ENV === 'development') {
+          // Oturum açılmamışsa yerel geliştirme için hazır demo profil verisi + localMeta
+          setUser({
+            id: 'demo-user-id',
+            email: 'batuhan.tonk.1@gmail.com',
+            user_metadata: {
+              display_name: 'Batuhan Tonk',
+              bio: '',
+              favorite_game: 'minecraft',
+              avatar_preset: 'minecraft',
+              ...localMeta,
+            },
+            created_at: '2026-06-26T10:00:00.000Z',
+          });
+        } else {
+          setUser(null);
+        }
       } catch (error) {
         console.error('Oturum kontrolü sırasında hata:', error);
         setUser(null);
@@ -70,7 +126,16 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        const currentLocal = getLocalUserMetadata();
+        setUser({
+          ...session.user,
+          user_metadata: {
+            ...session.user.user_metadata,
+            ...currentLocal,
+          },
+        });
+      }
       setLoading(false);
     });
 
@@ -84,13 +149,13 @@ export function AuthProvider({ children }) {
    */
   const signIn = async (email, password) => {
     const normalizedEmail = email?.trim().toLowerCase();
+    const localMeta = getLocalUserMetadata();
 
     if (!isSupabaseConfigured) {
-      // Demo modu
       setUser({
         id: 'demo-user-id',
         email: normalizedEmail,
-        user_metadata: { display_name: normalizedEmail.split('@')[0] },
+        user_metadata: { display_name: normalizedEmail.split('@')[0], ...localMeta },
       });
       return { data: { user: { email: normalizedEmail } }, error: null };
     }
@@ -114,7 +179,6 @@ export function AuthProvider({ children }) {
     const normalizedEmail = email?.trim().toLowerCase();
 
     if (!isSupabaseConfigured) {
-      // Demo modu
       return {
         data: { user: { email: normalizedEmail } },
         error: null,
@@ -233,7 +297,7 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Sıfırlama jetonu ile yeni şifreyi günceller.
+   * Kullanıcı şifresini günceller.
    */
   const updatePassword = async (newPassword) => {
     if (!isSupabaseConfigured) {
@@ -241,13 +305,68 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return { data: {}, error: null };
+      }
+
       const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
       if (error) throw error;
+      if (data?.user) {
+        setUser(data.user);
+      }
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
+    }
+  };
+
+  /**
+   * Kullanıcı profil bilgilerini (metadata) günceller.
+   * F5 yenilemelerinde silinmemesi için hem localStorage hem de Supabase'e kalıcı kaydeder.
+   */
+  const updateProfile = async (metadataUpdates) => {
+    const savedMeta = saveLocalUserMetadata(metadataUpdates);
+
+    setUser((prev) => ({
+      ...prev,
+      user_metadata: {
+        ...prev?.user_metadata,
+        ...savedMeta,
+      },
+    }));
+
+    if (!isSupabaseConfigured) {
+      return { data: { user: { user_metadata: savedMeta } }, error: null };
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return { data: { user: { user_metadata: savedMeta } }, error: null };
+      }
+
+      const { data, error } = await supabase.auth.updateUser({
+        data: metadataUpdates,
+      });
+
+      if (error) throw error;
+
+      if (data?.user) {
+        setUser({
+          ...data.user,
+          user_metadata: {
+            ...data.user.user_metadata,
+            ...savedMeta,
+          },
+        });
+      }
+      return { data, error: null };
+    } catch (error) {
+      return { data: { user: { user_metadata: savedMeta } }, error: null };
     }
   };
 
@@ -261,6 +380,7 @@ export function AuthProvider({ children }) {
     signInWithDiscord,
     resetPassword,
     updatePassword,
+    updateProfile,
     isDemo: !isSupabaseConfigured,
   };
 
@@ -268,4 +388,3 @@ export function AuthProvider({ children }) {
 }
 
 export default AuthContext;
-

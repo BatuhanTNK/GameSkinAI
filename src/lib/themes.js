@@ -179,8 +179,167 @@ Rules:
     - Detail their unique signature abilities (e.g. fire, wind, shadow, tech)
     Keep the response under 200 words.`,
   },
+  // Yeni Eklenen Temalar
+  {
+    slug: 'brawl-stars',
+    label: 'Brawl Stars',
+    description: 'Renkli 3D mobil brawler karakter',
+    description_en: 'Colorful 3D mobile brawler character',
+    icon: 'FaGamepad',
+    color: 'purple',
+    bgGradient: 'from-purple-600 to-indigo-700',
+    prompt: `You are a Brawl Stars character designer. Analyze this person's photo.
+    Design a 3D Brawl Stars brawler character based on this person:
+    - Chunky, stylized cartoon 3D model with bold outlines and vibrant colors
+    - Match their hairstyle, facial features, skin tone, and clothing style
+    - Give them a unique brawler weapon or gadget matching their vibe
+    - Detail their Super ability and brawler role (Damage Dealer, Tank, Support, Assassin)
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'clash-royale',
+    label: 'Clash Royale',
+    description: 'Karikatürize 3D krallık savaşçısı',
+    description_en: 'Cartoonish 3D kingdom warrior',
+    icon: 'FaCrown',
+    color: 'amber',
+    bgGradient: 'from-amber-500 to-yellow-600',
+    prompt: `You are a Clash Royale / Clash of Clans character designer. Analyze this person's photo.
+    Create a Clash-style kingdom troop card based on this person:
+    - Supercell signature 3D cartoon art style with expressive faces and crown accents
+    - Custom armor/tunic matching their outfit colors
+    - Give them an iconic troop title (e.g., "The Royal Archer", "Elixir Knight")
+    - Include troop rarity (Epic/Legendary) and elixir cost
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'lol',
+    label: 'LoL Champion',
+    description: 'Epik MOBA şampiyonu ve büyü zırhı',
+    description_en: 'Epic MOBA champion and magic armor',
+    icon: 'FaDragon',
+    color: 'blue',
+    bgGradient: 'from-blue-600 to-cyan-700',
+    prompt: `You are a League of Legends concept artist. Analyze this person's photo.
+    Design a playable LoL Champion based on this person:
+    - High-fantasy Riot splash art style with dramatic lighting and glowing magical effects
+    - Detailed armor, robes, or weaponry reflecting their outfit colors
+    - Specify their lane/role (Top, Jungle, Mid, ADC, Support) and champion title
+    - Outline passive and ultimate abilities (R) inspired by their persona
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'apex',
+    label: 'Apex Legend',
+    description: 'Futuristik battle royale pilotu',
+    description_en: 'Futuristic battle royale pilot',
+    icon: 'FaCrosshairs',
+    color: 'red',
+    bgGradient: 'from-red-600 to-orange-700',
+    prompt: `You are an Apex Legends character designer. Analyze this person's photo.
+    Design a new Apex Legend based on this person:
+    - Gritty, futuristic sci-fi battle royale hero design (Respawn style)
+    - High-tech jump kit, mechanical armor plates, and visor matching their clothing
+    - Define their Legend class (Recon, Assault, Skirmisher, Support, Controller)
+    - Detail Tactical and Ultimate abilities
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'lego',
+    label: 'LEGO Minifigure',
+    description: 'Plastik blok ikonik minifigür stili',
+    description_en: 'Iconic plastic block minifigure style',
+    icon: 'FaCube',
+    color: 'yellow',
+    bgGradient: 'from-yellow-400 to-amber-500',
+    prompt: `You are a LEGO minifigure designer. Analyze this person's photo.
+    Create an official LEGO minifigure model inspired by this person:
+    - Classic yellow or accurate skin-tone LEGO minifigure head with painted face expression
+    - Cylindrical head, stud top, trapezoidal plastic torso, and blocky legs
+    - Print their exact shirt pattern, logos, and pants onto the plastic torso and leg prints
+    - Include a custom plastic LEGO hairpiece/hat accessory
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'fall-guys',
+    label: 'Fall Guys',
+    description: 'Renkli peluş fasulye kostümü',
+    description_en: 'Colorful plush bean costume',
+    icon: 'FaSmile',
+    color: 'pink',
+    bgGradient: 'from-pink-500 to-rose-600',
+    prompt: `You are a Fall Guys costume designer. Analyze this person's photo.
+    Design a Fall Guys bean character costume based on this person:
+    - Round bean-shaped jellybean body with two cute black dot eyes and faceplate
+    - Whimsical plush costume outfit translating their hair, glasses, shirt, and shoes into a fun bean cosplay
+    - Vibrant glossy textures and obstacle-course ready vibe
+    Keep the response under 150 words.`,
+  },
+  {
+    slug: 'genshin',
+    label: 'Genshin Impact',
+    description: 'Anime 3D cel-shaded kahraman',
+    description_en: 'Anime 3D cel-shaded hero',
+    icon: 'FaGem',
+    color: 'teal',
+    bgGradient: 'from-teal-400 to-emerald-600',
+    prompt: `You are a Genshin Impact character designer. Analyze this person's photo.
+    Create a 5-star playable Genshin Impact anime character based on this person:
+    - Beautiful HoYoverse 3D cel-shaded anime aesthetic with intricate layered outfits
+    - Assign an Element (Pyro, Hydro, Anemo, Electro, Dendro, Cryo, Geo) matching their outfit color
+    - Choose weapon type (Sword, Claymore, Polearm, Bow, Catalyst)
+    - Describe their elemental vision gem location and burst animation
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'cyberpunk',
+    label: 'Cyberpunk 2077',
+    description: 'Neon siber protez ve deri ceket',
+    description_en: 'Neon cyberware and leather jacket',
+    icon: 'FaBolt',
+    color: 'yellow',
+    bgGradient: 'from-yellow-400 to-cyan-500',
+    prompt: `You are a Cyberpunk 2077 character concept artist. Analyze this person's photo.
+    Design a Night City mercenary (V-style) based on this person:
+    - Dark futuristic sci-fi aesthetic with glowing neon accents and Kiroshi optics
+    - Cybernetic face/arm implants, LED collar jacket, street-kid/corpo fashion
+    - Match hair style, tattoos, facial hair, and clothing colors
+    - Detail signature cyberware weapons (Mantis Blades, Monowire, Smart Smartguns)
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'witcher',
+    label: 'The Witcher',
+    description: 'Orta Çağ canavar avcısı şövalye',
+    description_en: 'Medieval monster hunter knight',
+    icon: 'FaShieldAlt',
+    color: 'slate',
+    bgGradient: 'from-gray-700 to-slate-900',
+    prompt: `You are a Witcher universe character designer. Analyze this person's photo.
+    Design a Witcher monster hunter or sorcerer character matching this person:
+    - Gritty dark medieval fantasy aesthetic (CD Projekt Red style)
+    - Studded leather jacket, steel shoulder pauldrons, double swords (steel & silver)
+    - Match facial features, hair, beard, scars, and cat-like Witcher eyes
+    - Detail signature Witcher Sign magic spell (Aard, Igni, Quen, Yrden, Axii)
+    Keep the response under 200 words.`,
+  },
+  {
+    slug: 'cs2',
+    label: 'Counter-Strike 2',
+    description: 'Taktiksel askeri tim operatörü',
+    description_en: 'Tactical military squad operator',
+    icon: 'FaUserSecret',
+    color: 'emerald',
+    bgGradient: 'from-emerald-700 to-green-900',
+    prompt: `You are a Counter-Strike 2 agent designer. Analyze this person's photo.
+    Design a CS2 tactical agent (CT or T squad) based on this person:
+    - Photorealistic Source 2 tactical military gear (ballistic helmet, Kevlar vest, radio, goggles)
+    - Outfit color scheme matching their clothes translated into camo/black tactical wear
+    - Match face shape, eyes, hair/beard under tactical gear
+    - Include custom gloves, patches, and equipment belt details
+    Keep the response under 200 words.`,
+  },
 ];
-
 
 /**
  * Slug'a göre tema bulma yardımcı fonksiyonu

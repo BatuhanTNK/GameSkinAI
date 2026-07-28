@@ -1,7 +1,7 @@
 /**
  * @fileoverview Fotoğraf yükleme bileşeni.
  * react-dropzone ile sürükle-bırak destekli fotoğraf yükleme alanı sağlar.
- * Dosya boyutu ve format validasyonu, önizleme gösterimi içerir.
+ * Dosya boyutu, MIME tipi ve Magic Byte validasyonu, önizleme gösterimi içerir.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -11,8 +11,7 @@ import { MdCloudUpload, MdClose, MdImage, MdCameraAlt } from 'react-icons/md';
 import { UPLOAD_LIMITS } from 'lib/constants';
 import CameraCapture from './CameraCapture';
 import { useTranslation } from 'contexts/TranslationContext';
-
-
+import { validateImageMagicBytes } from 'lib/imageValidator';
 
 /**
  * Dosya boyutunu okunabilir formata çevirir.
@@ -54,7 +53,7 @@ export default function ImageUploader({
    * Dosya yükleme callback'i.
    */
   const onDrop = useCallback(
-    (acceptedFiles, rejectedFiles) => {
+    async (acceptedFiles, rejectedFiles) => {
       if (rejectedFiles && rejectedFiles.length > 0) {
         const rejection = rejectedFiles[0];
         if (rejection.errors[0]?.code === 'file-too-large') {
@@ -66,7 +65,14 @@ export default function ImageUploader({
       }
 
       if (acceptedFiles && acceptedFiles.length > 0) {
-        onFileSelect(acceptedFiles[0], null);
+        const targetFile = acceptedFiles[0];
+        // Magic Byte İçerik Doğrulaması (Bulgu A6)
+        const magicCheck = await validateImageMagicBytes(targetFile);
+        if (!magicCheck.isValid) {
+          onFileSelect(null, magicCheck.error || 'Geçersiz resim dosyası.');
+          return;
+        }
+        onFileSelect(targetFile, null);
       }
     },
     [onFileSelect]

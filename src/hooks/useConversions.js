@@ -1,12 +1,21 @@
 /**
  * @fileoverview Dönüşüm geçmişi yönetimi için custom hook.
  * Supabase yapılandırılmışsa veritabanı ile, aksi halde local state ile çalışır.
+ * Her kullanıcının beğeni durumunu yerel bellekte saklayarak ID-bazlı 1 beğeni sınırı getirir.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from 'lib/supabase';
 import { useAuth } from 'contexts/AuthContext';
 import { TABLES } from 'lib/constants';
+
+/**
+ * UUID doğrulaması yapar (PostgreSQL UUID syntax hatasını önler).
+ */
+function isValidUuid(id) {
+  if (typeof id !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 
 /**
  * Yerel public durumlarını saklayan haritayı alır.
@@ -38,8 +47,36 @@ function saveLocalPublicMap(id, isPublic) {
 }
 
 /**
+ * Kullanıcının beğendiği gönderi haritasını okur.
+ */
+function getLocalLikesMap() {
+  try {
+    const stored = localStorage.getItem('gameskinai_user_likes');
+    return stored ? JSON.parse(stored) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
+ * Kullanıcının beğendiği gönderi haritasına kaydeder/siler.
+ */
+function saveLocalLikeState(id, isLiked) {
+  try {
+    const map = getLocalLikesMap();
+    if (isLiked) {
+      map[id] = true;
+    } else {
+      delete map[id];
+    }
+    localStorage.setItem('gameskinai_user_likes', JSON.stringify(map));
+  } catch (e) {
+    console.error('LocalLikeState kaydedilemedi:', e);
+  }
+}
+
+/**
  * LocalStorage kotalarını aşmamak için güvenli yazma yardımcısı.
- * QuotaExceededError fırlatılırsa en eski verileri budar.
  */
 function safeSetLocalStorage(key, items) {
   try {
@@ -65,15 +102,12 @@ function safeSetLocalStorage(key, items) {
 export function useConversions() {
   const { user } = useAuth();
   const [conversions, setConversions] = useState(() => {
-    if (!isSupabaseConfigured) {
-      try {
-        const stored = localStorage.getItem('gameskinai_conversions');
-        return stored ? JSON.parse(stored) : [];
-      } catch (e) {
-        return [];
-      }
+    try {
+      const stored = localStorage.getItem('gameskinai_conversions');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
     }
-    return [];
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -88,8 +122,9 @@ export function useConversions() {
       return;
     }
 
-    if (!isSupabaseConfigured) {
-      // Demo modu: localStorage'dan oku
+    const hasValidUuid = isValidUuid(user.id);
+
+    if (!isSupabaseConfigured || !hasValidUuid) {
       try {
         const stored = localStorage.getItem('gameskinai_conversions');
         const publicMap = getLocalPublicMap();
@@ -126,8 +161,12 @@ export function useConversions() {
 
       setConversions(merged);
     } catch (err) {
-      console.error('Dönüşüm geçmişi alınamadı:', err);
-      setError(err.message);
+      console.warn('Dönüşüm geçmişi Supabase uyarısı, yerel veriler gösteriliyor:', err.message);
+      try {
+        const stored = localStorage.getItem('gameskinai_conversions');
+        const list = stored ? JSON.parse(stored) : [];
+        setConversions(list);
+      } catch (e) {}
     } finally {
       setLoading(false);
     }
@@ -137,15 +176,19 @@ export function useConversions() {
    * Belirtilen ID'ye sahip dönüşümü siler.
    */
   const deleteConversion = async (id) => {
+    if (!user) {
+      return { success: false, error: 'Kullanıcı oturumu bulunamadı.' };
+    }
+
     try {
       const previousConversions = [...conversions];
       const updated = conversions.filter((c) => c.id !== id);
       setConversions(updated);
       saveLocalPublicMap(id, false);
+      saveLocalLikeState(id, false);
+      safeSetLocalStorage('gameskinai_conversions', updated);
 
-      if (!isSupabaseConfigured) {
-        safeSetLocalStorage('gameskinai_conversions', updated);
-      } else {
+      if (isSupabaseConfigured && isValidUuid(user.id)) {
         const { error: deleteError } = await supabase
           .from(TABLES.CONVERSIONS)
           .delete()
@@ -179,16 +222,16 @@ export function useConversions() {
         user_id: user.id,
       };
 
-      if (!isSupabaseConfigured) {
-        // Demo modu: local state ve localStorage'a ekle
-        const demoData = {
-          ...newConversion,
-          id: 'demo-' + Date.now(),
-          created_at: new Date().toISOString(),
-        };
-        const updated = [demoData, ...conversions];
-        setConversions(updated);
-        safeSetLocalStorage('gameskinai_conversions', updated);
+      const demoData = {
+        ...newConversion,
+        id: 'conv-' + Date.now(),
+        created_at: new Date().toISOString(),
+      };
+      const updated = [demoData, ...conversions];
+      setConversions(updated);
+      safeSetLocalStorage('gameskinai_conversions', updated);
+
+      if (!isSupabaseConfigured || !isValidUuid(user.id)) {
         return { data: demoData, error: null };
       }
 
@@ -198,13 +241,12 @@ export function useConversions() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
-      setConversions((prev) => [data, ...prev]);
-
-      // Supabase'e eklenen veriyi yerel listenize de yedekleyin
-      const stored = localStorage.getItem('gameskinai_conversions');
-      const list = stored ? JSON.parse(stored) : [];
-      safeSetLocalStorage('gameskinai_conversions', [data, ...list]);
+      if (insertError) {
+        console.warn('Supabase kayıt uyarısı, yerel veri kullanılıyor:', insertError.message);
+        return { data: demoData, error: null };
+      }
+      
+      setConversions((prev) => [data, ...prev.filter((c) => c.id !== demoData.id)]);
 
       return { data, error: null };
     } catch (err) {
@@ -217,6 +259,10 @@ export function useConversions() {
    * Mevcut bir dönüşümü günceller.
    */
   const updateConversion = async (id, updateData) => {
+    if (!user) {
+      return { data: null, error: 'Kullanıcı oturumu bulunamadı.' };
+    }
+
     if (updateData.is_public !== undefined) {
       saveLocalPublicMap(id, updateData.is_public);
     }
@@ -226,7 +272,7 @@ export function useConversions() {
       setConversions(updated);
       safeSetLocalStorage('gameskinai_conversions', updated);
 
-      if (!isSupabaseConfigured) {
+      if (!isSupabaseConfigured || !isValidUuid(user.id)) {
         return { data: { id, ...updateData }, error: null };
       }
 
@@ -234,30 +280,31 @@ export function useConversions() {
         .from(TABLES.CONVERSIONS)
         .update(updateData)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
       if (updateError) {
-        console.warn('Supabase güncelleme uyarısı (yerel saklama aktif):', updateError.message);
+        console.warn('Supabase güncelleme uyarısı:', updateError.message);
       }
 
       return { data: data || { id, ...updateData }, error: null };
     } catch (err) {
-      console.warn('Dönüşüm güncelleme hatası (yerel saklama aktif):', err.message);
+      console.warn('Dönüşüm güncelleme hatası:', err.message);
       const updated = conversions.map((c) => (c.id === id ? { ...c, ...updateData } : c));
       setConversions(updated);
-      safeSetLocalStorage('gameskinai_conversions', updated);
       return { data: { id, ...updateData }, error: null };
     }
   };
 
   /**
    * Kamusal (topluluk) dönüşümleri getirir.
+   * Kullanıcının önceden beğendiği gönderileri userLiked olarak işaretler.
    */
   const fetchPublicConversions = useCallback(async () => {
     const publicMap = getLocalPublicMap();
+    const likesMap = getLocalLikesMap();
 
-    // 1. Önce yerel conversions ve localStorage'dan public olanları topla
     let localPublicList = [];
     try {
       const stored = localStorage.getItem('gameskinai_conversions');
@@ -268,12 +315,24 @@ export function useConversions() {
       combined.forEach((item) => {
         const isPub = item.is_public || !!publicMap[item.id];
         if (isPub && !uniqueMap.has(item.id)) {
-          uniqueMap.set(item.id, { ...item, is_public: true });
+          const safeItem = {
+            ...item,
+            original_image_url: null,
+            is_public: true,
+            userLiked: !!likesMap[item.id],
+          };
+          uniqueMap.set(item.id, safeItem);
         }
       });
       localPublicList = Array.from(uniqueMap.values());
     } catch (e) {
-      localPublicList = conversions.filter((c) => c.is_public || publicMap[c.id]);
+      localPublicList = conversions
+        .filter((c) => c.is_public || publicMap[c.id])
+        .map((c) => ({
+          ...c,
+          original_image_url: null,
+          userLiked: !!likesMap[c.id],
+        }));
     }
 
     if (!isSupabaseConfigured) {
@@ -283,18 +342,26 @@ export function useConversions() {
     try {
       const { data, error: fetchErr } = await supabase
         .from(TABLES.CONVERSIONS)
-        .select('*')
+        .select('id, theme_slug, theme_label, result_image_url, result_description, created_at, likes_count, is_public')
         .eq('is_public', true)
         .order('created_at', { ascending: false });
 
       if (fetchErr) throw fetchErr;
 
-      // Supabase'den gelenler ile yerel public listenin birleşimi
       const dbMap = new Map();
-      (data || []).forEach((item) => dbMap.set(item.id, { ...item, is_public: true }));
+      (data || []).forEach((item) =>
+        dbMap.set(item.id, {
+          ...item,
+          is_public: true,
+          userLiked: !!likesMap[item.id],
+        })
+      );
       localPublicList.forEach((item) => {
         if (!dbMap.has(item.id)) {
-          dbMap.set(item.id, item);
+          dbMap.set(item.id, {
+            ...item,
+            userLiked: !!likesMap[item.id],
+          });
         }
       });
 
@@ -314,11 +381,31 @@ export function useConversions() {
   };
 
   /**
-   * Bir dönüşümün beğeni sayısını artırır.
+   * Bir dönüşümün beğeni durumunu ve sayısını günceller.
+   * Hesap başına 1 beğeni sınırı koruması eklenmiştir (Like/Unlike).
    */
-  const toggleLike = async (id, currentLikes = 0) => {
-    const nextLikes = currentLikes + 1;
-    return await updateConversion(id, { likes_count: nextLikes });
+  const toggleLike = async (id, newLikesCount, newLikedState) => {
+    saveLocalLikeState(id, newLikedState);
+
+    // State içindeki dönüşümü güncelle
+    setConversions((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, likes_count: newLikesCount, userLiked: newLikedState } : c
+      )
+    );
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from(TABLES.CONVERSIONS)
+          .update({ likes_count: newLikesCount })
+          .eq('id', id);
+      } catch (err) {
+        console.warn('Supabase beğeni sayısı güncelleme uyarısı:', err.message);
+      }
+    }
+
+    return { success: true };
   };
 
   useEffect(() => {

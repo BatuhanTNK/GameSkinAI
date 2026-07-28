@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 const TranslationContext = createContext(null);
 
-
 const LANGUAGES = {
   tr: {
     // Navigation
@@ -20,7 +19,6 @@ const LANGUAGES = {
     'sidebar.cardBtn': 'Dönüştürmeye Başla',
     'footer.rights': 'Tüm hakları saklıdır.',
 
-
     // Marketplace / Community
     'marketplace.title': 'Topluluk Galerisi 🎨',
     'marketplace.subtitle': 'Diğer kullanıcıların ürettiği en popüler AI oyun karakterlerini keşfedin.',
@@ -29,7 +27,6 @@ const LANGUAGES = {
     'marketplace.isPublic': 'Toplulukta Yayında',
     'marketplace.noSkins': 'Henüz yayınlanmış bir topluluk skini bulunmuyor.',
     'share.copiedSuccess': 'Bağlantı panoya kopyalandı!',
-
 
     // Converter Page
     'converter.welcome': 'Merhaba, {name}! 👋',
@@ -45,7 +42,7 @@ const LANGUAGES = {
     'converter.toast.success': 'Dönüşüm tamamlandı!',
     'converter.toast.error': 'Dönüşüm sırasında bir hata oluştu.',
     'converter.rateLimit': 'Lütfen {seconds} saniye daha bekleyin.',
-    
+
     // ImageUploader
     'uploader.dragActive': 'Fotoğrafı buraya bırakın...',
     'uploader.dragInstruction': 'Fotoğrafınızı sürükleyip bırakın',
@@ -88,29 +85,65 @@ const LANGUAGES = {
     'history.deleting': 'Siliniyor...',
     'common.delete': 'Sil',
 
-    
-    // Profile Page
+    // Profile Page (Tüm Çevirileri Tamamlandı)
     'profile.title': 'Profilim',
     'profile.subtitle': 'Hesap bilgilerinizi yönetin',
-    'profile.demoWarning': 'Demo modundasınız. Profil değişiklikleri kaydedilmeyecektir. Gerçek hesap kullanmak için Supabase yapılandırmasını tamamlayın.',
+    'profile.demoBanner': 'Şu anda Demo Modundasınız. Profil ve şifre değişiklikleriniz yerel ortamda anlık olarak test edilebilir.',
     'profile.memberSince': 'Üyelik Tarihi',
     'profile.statsTotal': 'Toplam Dönüşüm',
     'profile.statsFav': 'En Çok Kullanılan Tema',
+    'profile.mostUsedTheme': 'En Çok Kullanılan',
     'profile.formTitle': 'Profil Bilgileri',
     'profile.emailLabel': 'E-posta Adresi',
     'profile.emailNote': 'E-posta adresi değiştirilemez.',
     'profile.nameLabel': 'Görünen Ad',
     'profile.namePlaceholder': 'Adınızı girin',
+    'profile.bioLabel': 'Hakkımda / Biyografi',
+    'profile.bioPlaceholder': 'Kendinizden kısaca bahsedin (örn: Minecraft & Valorant sevdalısı)...',
+    'profile.favGameLabel': 'Favori Oyun Evreni',
+    'profile.avatarLabel': 'Profil Avatar Amblemi',
     'profile.btnSave': 'Değişiklikleri Kaydet',
     'profile.btnSaving': 'Kaydediliyor...',
     'profile.pwTitle': 'Şifre Değiştir',
-    'profile.pwLabel': 'Yeni Şifre',
-    'profile.pwPlaceholder': 'En az 6 karakter',
-    'profile.pwConfirmLabel': 'Şifre Tekrar',
-    'profile.pwConfirmPlaceholder': 'Şifrenizi tekrar girin',
+    'profile.currentPwLabel': 'Mevcut Şifre',
+    'profile.currentPwPlaceholder': 'Güvenlik için mevcut şifrenizi girin',
+    'profile.newPwLabel': 'Yeni Şifre',
+    'profile.newPwPlaceholder': 'Yeni güçlü şifreniz',
+    'profile.suggestPw': 'Güçlü Şifre Öner',
+    'profile.suggestedPwNotice': 'Önerilen güçlü şifre dolduruldu!',
+    'profile.pwConfirmLabel': 'Yeni Şifre Tekrar',
+    'profile.pwConfirmPlaceholder': 'Yeni şifrenizi tekrar girin',
+    'profile.pwMatch': 'Şifreler eşleşiyor.',
     'profile.pwMismatch': 'Şifreler eşleşmiyor.',
     'profile.btnChangePw': 'Şifreyi Değiştir',
     'profile.btnChangingPw': 'Değiştiriliyor...',
+    'profile.pwReqTitle': 'Şifre Güvenlik Kriterleri:',
+    'profile.pwReqLength': 'En az 8 karakter',
+    'profile.pwReqUpper': 'En az 1 büyük harf (A-Z)',
+    'profile.pwReqLower': 'En az 1 küçük harf (a-z)',
+    'profile.pwReqNumber': 'En az 1 rakam (0-9)',
+    'profile.pwReqSpecial': 'En az 1 özel karakter (!@#$%...)',
+    'profile.strengthTitle': 'Şifre Gücü:',
+    'profile.strengthWeak': 'Zayıf',
+    'profile.strengthMedium': 'Orta',
+    'profile.strengthStrong': 'Güçlü',
+    'profile.strengthVeryStrong': 'Çok Güçlü',
+    'profile.rankTitle': 'Hesap Başarımları',
+    'profile.rankBadge1': 'İlk Skin',
+    'profile.rankBadge1Sub': 'Kazanıldı',
+    'profile.rankBadge2': 'AI Kaşifi',
+    'profile.rankBadge2Sub': 'Aktif',
+    'profile.rankBadge3': 'Güvenli',
+    'profile.rankBadge3Sub': 'Doğrulandı',
+    'profile.rankRookie': '🥉 Çaylak Dönüştürücü',
+    'profile.rankVeteran': '🥈 Kıdemli Savaşçı',
+    'profile.rankMaster': '🥇 Skin Ustası',
+    'profile.rankLegend': '💎 Efsanevi GameSkin Üstadı',
+    'profile.toastSuccess': 'Değişiklikler başarıyla kaydedildi!',
+    'profile.pwSuccess': 'Şifreniz başarıyla değiştirildi!',
+    'profile.currentPwErr': 'Mevcut şifreniz hatalı. Lütfen tekrar kontrol edin.',
+    'profile.fillCurrentPw': 'Lütfen mevcut şifrenizi giriniz.',
+    'profile.meetCriteria': 'Yeni şifreniz tüm güvenlik kriterlerini karşılamalıdır.',
 
     // Auth
     'auth.forgotPassword': 'Şifremi Unuttum',
@@ -180,7 +213,6 @@ const LANGUAGES = {
     'auth.heroFeature1': 'Anında AI Karakter Dönüşümü',
     'auth.heroFeature2': 'Cyberpunk, RPG & Anime Temaları',
     'auth.heroFeature3': 'Yüksek Çözünürlüklü Topluluk Galerisi',
-
 
     // Common
     'common.close': 'Kapat',
@@ -315,7 +347,6 @@ const LANGUAGES = {
     'sidebar.cardBtn': 'Start Converting',
     'footer.rights': 'All rights reserved.',
 
-
     // Marketplace / Community
     'marketplace.title': 'Community Showcase 🎨',
     'marketplace.subtitle': 'Explore the most popular AI game characters created by other users.',
@@ -325,6 +356,65 @@ const LANGUAGES = {
     'marketplace.noSkins': 'No community skins published yet.',
     'share.copiedSuccess': 'Link copied to clipboard!',
 
+    // Profile Page (Full EN Translations)
+    'profile.title': 'My Profile',
+    'profile.subtitle': 'Manage your account settings',
+    'profile.demoBanner': 'You are currently in Demo Mode. Your profile and password changes can be tested live locally.',
+    'profile.memberSince': 'Member Since',
+    'profile.statsTotal': 'Total Conversions',
+    'profile.statsFav': 'Most Used Theme',
+    'profile.mostUsedTheme': 'Most Used',
+    'profile.formTitle': 'Profile Information',
+    'profile.emailLabel': 'Email Address',
+    'profile.emailNote': 'Email address cannot be changed.',
+    'profile.nameLabel': 'Display Name',
+    'profile.namePlaceholder': 'Enter your name',
+    'profile.bioLabel': 'About Me / Bio',
+    'profile.bioPlaceholder': 'Tell us briefly about yourself (e.g. Minecraft & Valorant fan)...',
+    'profile.favGameLabel': 'Favorite Game Universe',
+    'profile.avatarLabel': 'Profile Avatar Badge',
+    'profile.btnSave': 'Save Changes',
+    'profile.btnSaving': 'Saving...',
+    'profile.pwTitle': 'Change Password',
+    'profile.currentPwLabel': 'Current Password',
+    'profile.currentPwPlaceholder': 'Enter your current password for security',
+    'profile.newPwLabel': 'New Password',
+    'profile.newPwPlaceholder': 'Your new strong password',
+    'profile.suggestPw': 'Suggest Strong Password',
+    'profile.suggestedPwNotice': 'Suggested strong password applied!',
+    'profile.pwConfirmLabel': 'Confirm New Password',
+    'profile.pwConfirmPlaceholder': 'Re-enter your new password',
+    'profile.pwMatch': 'Passwords match.',
+    'profile.pwMismatch': 'Passwords do not match.',
+    'profile.btnChangePw': 'Change Password',
+    'profile.btnChangingPw': 'Changing...',
+    'profile.pwReqTitle': 'Password Security Requirements:',
+    'profile.pwReqLength': 'At least 8 characters',
+    'profile.pwReqUpper': 'At least 1 uppercase letter (A-Z)',
+    'profile.pwReqLower': 'At least 1 lowercase letter (a-z)',
+    'profile.pwReqNumber': 'At least 1 number (0-9)',
+    'profile.pwReqSpecial': 'At least 1 special character (!@#$%...)',
+    'profile.strengthTitle': 'Password Strength:',
+    'profile.strengthWeak': 'Weak',
+    'profile.strengthMedium': 'Medium',
+    'profile.strengthStrong': 'Strong',
+    'profile.strengthVeryStrong': 'Very Strong',
+    'profile.rankTitle': 'Account Achievements',
+    'profile.rankBadge1': 'First Skin',
+    'profile.rankBadge1Sub': 'Earned',
+    'profile.rankBadge2': 'AI Explorer',
+    'profile.rankBadge2Sub': 'Active',
+    'profile.rankBadge3': 'Secured',
+    'profile.rankBadge3Sub': 'Verified',
+    'profile.rankRookie': '🥉 Rookie Converter',
+    'profile.rankVeteran': '🥈 Veteran Warrior',
+    'profile.rankMaster': '🥇 Skin Master',
+    'profile.rankLegend': '💎 Legendary GameSkin Master',
+    'profile.toastSuccess': 'Changes saved successfully!',
+    'profile.pwSuccess': 'Password changed successfully!',
+    'profile.currentPwErr': 'Current password is incorrect. Please double check.',
+    'profile.fillCurrentPw': 'Please enter your current password.',
+    'profile.meetCriteria': 'Your new password must meet all security requirements.',
 
     // Auth
     'auth.forgotPassword': 'Forgot Password',
@@ -395,9 +485,7 @@ const LANGUAGES = {
     'auth.heroFeature2': 'Cyberpunk, RPG & Anime Themes',
     'auth.heroFeature3': 'High-Res Community Showcase',
 
-
     // Converter Page
-
     'converter.welcome': 'Hello, {name}! 👋',
     'converter.subtitle': 'Select a photo, choose a theme, and convert with AI.',
     'converter.step1': '1. Choose Theme',
@@ -453,30 +541,6 @@ const LANGUAGES = {
     'history.detail': 'Details',
     'history.deleting': 'Deleting...',
     'common.delete': 'Delete',
-
-
-    // Profile Page
-    'profile.title': 'My Profile',
-    'profile.subtitle': 'Manage your account settings',
-    'profile.demoWarning': 'You are in demo mode. Profile changes will not be saved. Complete Supabase configuration to use a real account.',
-    'profile.memberSince': 'Member Since',
-    'profile.statsTotal': 'Total Conversions',
-    'profile.statsFav': 'Most Used Theme',
-    'profile.formTitle': 'Profile Information',
-    'profile.emailLabel': 'Email Address',
-    'profile.emailNote': 'Email address cannot be changed.',
-    'profile.nameLabel': 'Display Name',
-    'profile.namePlaceholder': 'Enter your name',
-    'profile.btnSave': 'Save Changes',
-    'profile.btnSaving': 'Saving...',
-    'profile.pwTitle': 'Change Password',
-    'profile.pwLabel': 'New Password',
-    'profile.pwPlaceholder': 'At least 6 characters',
-    'profile.pwConfirmLabel': 'Confirm Password',
-    'profile.pwConfirmPlaceholder': 'Re-enter your password',
-    'profile.pwMismatch': 'Passwords do not match.',
-    'profile.btnChangePw': 'Change Password',
-    'profile.btnChangingPw': 'Changing...',
 
     // Common
     'common.close': 'Close',
@@ -636,14 +700,12 @@ export function TranslationProvider({ children }) {
     return localStorage.getItem('gameskinai_lang') || 'tr';
   });
 
-  // URL adresi değiştikçe (örneğin kullanıcı adresteki /tr/ yerine /en/ yazdığında) dili anında güncelle
   useEffect(() => {
     const urlLang = getLangFromUrlPath(location.pathname);
     if (urlLang && urlLang !== lang) {
       setLang(urlLang);
       localStorage.setItem('gameskinai_lang', urlLang);
     } else if (!urlLang && location.pathname !== '/') {
-      // URL'de /tr veya /en yoksa (ör. /auth/sign-up), mevcut dili URL'nin başına otomatik ekle: /tr/auth/sign-up
       const segments = location.pathname.split('/').filter(Boolean);
       if (segments.length > 0) {
         const activeLang = lang || localStorage.getItem('gameskinai_lang') || 'tr';
@@ -653,7 +715,6 @@ export function TranslationProvider({ children }) {
     }
   }, [location.pathname, location.search, lang, navigate]);
 
-  // HTML kök etiketinin lang özniteliğini aktif dil ile senkronize et
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = lang;
@@ -668,7 +729,6 @@ export function TranslationProvider({ children }) {
         document.documentElement.lang = newLang;
       }
 
-      // URL path'ini güncelle (/tr/auth/sign-up -> /en/auth/sign-up)
       try {
         const currentPath = window.location.pathname;
         const segments = currentPath.split('/').filter(Boolean);
@@ -695,7 +755,6 @@ export function TranslationProvider({ children }) {
   const t = useCallback((key, params = {}) => {
     let translation = LANGUAGES[lang]?.[key] || LANGUAGES['tr']?.[key] || key;
 
-    // Parametreleri değiştir (örneğin {name} -> "Batuhan")
     Object.entries(params).forEach(([paramKey, value]) => {
       translation = translation.replace(`{${paramKey}}`, value);
     });
@@ -709,5 +768,3 @@ export function TranslationProvider({ children }) {
     </TranslationContext.Provider>
   );
 }
-
-

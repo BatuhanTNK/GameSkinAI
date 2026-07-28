@@ -1,40 +1,9 @@
 /**
- * @fileoverview Supabase client konfigürasyonu.
- * Tüm Supabase işlemleri bu dosyadan export edilen client ile yapılır.
- *
- * Gerekli Supabase tabloları (SQL):
- *
- * -- conversions tablosu
- * CREATE TABLE conversions (
- *   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
- *   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
- *   theme_slug TEXT NOT NULL,
- *   theme_label TEXT NOT NULL,
- *   original_image_url TEXT,
- *   result_image_url TEXT,
- *   result_description TEXT,
- *   status TEXT DEFAULT 'pending', -- pending | processing | done | error
- *   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
- * );
- *
- * -- Row Level Security
- * ALTER TABLE conversions ENABLE ROW LEVEL SECURITY;
- * CREATE POLICY "Users can only see their own conversions"
- *   ON conversions FOR ALL USING (auth.uid() = user_id);
- *
- * -- themes tablosu
- * CREATE TABLE themes (
- *   id SERIAL PRIMARY KEY,
- *   slug TEXT UNIQUE NOT NULL,
- *   label TEXT NOT NULL,
- *   description TEXT,
- *   prompt TEXT NOT NULL,
- *   icon TEXT,
- *   active BOOLEAN DEFAULT true
- * );
+ * @fileoverview Supabase client konfigürasyonu ve storage/edge fonksiyon servisleri.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { validateImageMagicBytes } from './imageValidator';
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
@@ -51,13 +20,16 @@ function isValidSupabaseUrl(url) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Geçersiz Supabase URL formatı:', err);
+    }
     return false;
   }
 }
 
 /**
- * Supabase Anon Key'in geçerli (JWT formatında) olup olmadığını kontrol eder.
+ * Supabase Anon Key'in geçerli olup olmadığını kontrol eder.
  * @param {string} key
  * @returns {boolean}
  */
@@ -65,21 +37,17 @@ function isValidSupabaseKey(key) {
   if (!key || typeof key !== 'string' || key.includes('placeholder') || key.includes('your_') || key.includes('your-')) {
     return false;
   }
-  // Supabase hem JWT (eyJ...) hem de publishable (sb_publishable_...) anahtar formatlarını destekler.
   return key.trim().length > 10;
 }
 
 const isConfigured = isValidSupabaseUrl(supabaseUrl) && isValidSupabaseKey(supabaseAnonKey);
 
-if (!isConfigured) {
-  console.warn(
-    'Supabase yapılandırılmamış veya geçersiz kimlik bilgileri tespit edildi. .env dosyanıza geçerli REACT_APP_SUPABASE_URL ve REACT_APP_SUPABASE_ANON_KEY (JWT formatında) ekleyin. Uygulama Demo Modunda çalışıyor.'
-  );
+if (!isConfigured && process.env.NODE_ENV === 'development') {
+  // Demo modu bilgilendirmesi
 }
 
 /**
  * Supabase client.
- * Yapılandırılmamışsa dummy URL ile oluşturulur (API çağrıları başarısız olur ama uygulama crash olmaz).
  */
 export const supabase = createClient(
   isConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
@@ -91,13 +59,14 @@ export const isSupabaseConfigured = isConfigured;
 
 /**
  * Orijinal dosyayı Supabase Storage'a yükler.
+ * Magic byte kontrolü ile güvenli uzantı belirler (Bulgu A6, A7).
+ * 
  * @param {File} file - Yüklenecek dosya
  * @param {string} bucketName - Storage bucket adı
- * @returns {Promise<string>} Resim public URL'i veya base64 data URL
+ * @returns {Promise<string>} Resim public URL'i veya Signed URL
  */
 export async function uploadImage(file, bucketName = 'conversions') {
   if (!isSupabaseConfigured) {
-    // Demo/offline mod fallback: base64'e çevirip döndür
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result);
@@ -106,15 +75,20 @@ export async function uploadImage(file, bucketName = 'conversions') {
     });
   }
 
-  const fileExt = file.name.split('.').pop() || 'jpg';
+  // Magic Byte ile güvenli uzantı belirleme (Bulgu A6)
+  const magicCheck = await validateImageMagicBytes(file);
+  let safeExt = 'jpg';
+  if (magicCheck.detectedType === 'image/png') safeExt = 'png';
+  else if (magicCheck.detectedType === 'image/webp') safeExt = 'webp';
+
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-  const fileName = `${uuid}-${Date.now()}.${fileExt}`;
+  const fileName = `${uuid}-${Date.now()}.${safeExt}`;
   const filePath = `${fileName}`;
 
   try {
     const { error } = await supabase.storage
       .from(bucketName)
-      .upload(filePath, file, { upsert: false });
+      .upload(filePath, file, { upsert: false, contentType: magicCheck.detectedType || 'image/jpeg' });
 
     if (error) {
       console.error('Supabase Storage yükleme hatası, yerel URL kullanılıyor:', error);
@@ -125,13 +99,26 @@ export async function uploadImage(file, bucketName = 'conversions') {
       });
     }
 
+    // Bucket private ise Signed URL dene, değilse Public URL al (Bulgu A7)
+    try {
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 günlük erişim
+
+      if (!signedError && signedData?.signedUrl) {
+        return signedData.signedUrl;
+      }
+    } catch (sErr) {
+      console.warn('Signed URL oluşturulamadı, public URL kullanılıyor:', sErr);
+    }
+
     const { data: { publicUrl } } = supabase.storage
       .from(bucketName)
       .getPublicUrl(filePath);
 
     return publicUrl;
   } catch (err) {
-    console.error('Storage yükleme hatası:', err);
+    console.error('Storage yükleme istisnası:', err);
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result);
@@ -145,9 +132,13 @@ export async function uploadImage(file, bucketName = 'conversions') {
  * @param {string} base64Str - Saf base64 string
  * @param {string} mimeType - Görüntünün MIME tipi
  * @param {string} bucketName - Storage bucket adı
- * @returns {Promise<string>} Yüklenen resmin public URL'i
+ * @returns {Promise<string>} Yüklenen resmin URL'i
  */
 export async function uploadBase64Image(base64Str, mimeType = 'image/jpeg', bucketName = 'conversions') {
+  if (!base64Str) return '';
+  if (typeof base64Str === 'string' && (base64Str.startsWith('http://') || base64Str.startsWith('https://'))) {
+    return base64Str;
+  }
   if (!isSupabaseConfigured) {
     return `data:${mimeType};base64,${base64Str}`;
   }
@@ -165,7 +156,9 @@ export async function uploadBase64Image(base64Str, mimeType = 'image/jpeg', buck
 
     return await uploadImage(file, bucketName);
   } catch (err) {
-    console.error('Base64 resmi dönüştürme ve yükleme hatası:', err);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Base64 resmi dönüştürme uyarısı:', err.message);
+    }
     return `data:${mimeType};base64,${base64Str}`;
   }
 }
@@ -214,5 +207,3 @@ export async function invokeEdgeFunction(functionName, body) {
 
   return data;
 }
-
-

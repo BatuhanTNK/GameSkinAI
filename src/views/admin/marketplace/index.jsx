@@ -44,21 +44,38 @@ export default function Marketplace() {
     loadPublicData();
   }, [loadPublicData]);
 
-  // Beğeni Butonu İşleyicisi
+  // Beğeni Butonu İşleyicisi (Tek Beğeni / Beğeni Geri Alma Garantili)
   const handleLike = async (e, conv) => {
     e.stopPropagation();
+
+    const isCurrentlyLiked = !!conv.userLiked;
     const currentLikes = conv.likes_count || 0;
-    
-    // Optimistic UI Update
+    const nextLikedState = !isCurrentlyLiked;
+    const nextLikesCount = nextLikedState ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+
+    // Anında UI Güncellemesi (İlk Tıklamada +1 Artış Garantisi)
     setPublicConversions((prev) =>
       prev.map((item) =>
-        item.id === conv.id ? { ...item, likes_count: currentLikes + 1, userLiked: true } : item
+        item.id === conv.id
+          ? { ...item, likes_count: nextLikesCount, userLiked: nextLikedState }
+          : item
       )
     );
 
-    const { error } = await toggleLike(conv.id, currentLikes);
-    if (!error) {
+    if (selectedConversion && selectedConversion.id === conv.id) {
+      setSelectedConversion((prev) => ({
+        ...prev,
+        likes_count: nextLikesCount,
+        userLiked: nextLikedState,
+      }));
+    }
+
+    await toggleLike(conv.id, nextLikesCount, nextLikedState);
+
+    if (nextLikedState) {
       showToast('Beğenildi! ❤️', 'success');
+    } else {
+      showToast('Beğeni geri alındı 🤍', 'info');
     }
   };
 

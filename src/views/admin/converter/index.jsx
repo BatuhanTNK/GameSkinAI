@@ -183,10 +183,13 @@ export default function Converter() {
       return;
     }
 
-    // Rate limiting kontrolü
+    // Rate limiting kontrolü (Persisted across page reload)
     const now = Date.now();
-    const timeSinceLastRequest = (now - lastRequestTime.current) / 1000;
-    if (timeSinceLastRequest < RATE_LIMIT_SECONDS && lastRequestTime.current !== 0) {
+    const storedLastRequest = localStorage.getItem('gameskinai_last_request_time');
+    const lastRequestTimestamp = storedLastRequest ? parseInt(storedLastRequest, 10) : lastRequestTime.current;
+    const timeSinceLastRequest = (now - lastRequestTimestamp) / 1000;
+
+    if (timeSinceLastRequest < RATE_LIMIT_SECONDS && lastRequestTimestamp !== 0) {
       const remainingSeconds = Math.ceil(
         RATE_LIMIT_SECONDS - timeSinceLastRequest
       );
@@ -207,6 +210,11 @@ export default function Converter() {
     setResult(null);
     setConversionError(null);
     lastRequestTime.current = Date.now();
+    try {
+      localStorage.setItem('gameskinai_last_request_time', lastRequestTime.current.toString());
+    } catch (e) {
+      console.warn('Rate limit kaydı kaydedilemedi:', e);
+    }
 
     try {
       // 1. Görüntüyü base64'e çevir (Gemini analizi için)
@@ -319,7 +327,6 @@ export default function Converter() {
         // 5. Üretilen görseli Supabase'e yükle
         resultImageUrl = await uploadBase64Image(resultImageBase64, 'image/jpeg');
       } catch (err) {
-        console.warn('Görsel üretimi veya Storage yüklemesi başarısız oldu, doğrudan URL yedeklemesi (Pollinations AI) yapılıyor:', err);
         const seed = Math.floor(Math.random() * 1000000);
         resultImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=512&height=512&nologo=true&seed=${seed}`;
       }
