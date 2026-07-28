@@ -1,7 +1,7 @@
 /**
  * @fileoverview AI dönüşüm ve görsel üretimi istemci kütüphanesi.
- * Hem .env REACT_APP_GEMINI_API_KEY hem de Supabase Edge Function desteği içerir.
- * Geçersiz/test API anahtarlarının konsolda 401 hatası vermesini önlemek için sıkı API doğrulama ve temiz fallback sağlar.
+ * Tüm Gemini API anahtarları Sunucu Tarafında (Supabase Edge Function) saklanır.
+ * İstemci tarafında hiçbir API anahtarı barındırılmaz (Güvenlik Koruması).
  */
 
 import { invokeEdgeFunction, isSupabaseConfigured } from './supabase';
@@ -20,7 +20,7 @@ function getSecureRandomSeed() {
 }
 
 /**
- * API anahtarı yokluğu veya ağ hatası durumunda akıllı demo/fallback karakter üreticisi.
+ * Sunucu tarafı API veya ağ hatası durumunda akıllı demo/fallback karakter üreticisi.
  * @param {string} themePrompt
  * @param {boolean} isJson
  * @returns {string} Karakter açıklaması
@@ -118,65 +118,10 @@ function generateFallbackCharacter(themePrompt = '', isJson = false) {
 }
 
 /**
- * Fotoğrafı analiz edip tema prompt'uyla birleştirerek AI ile dönüşüm yapar.
- * Gerçek Google Gemini API Anahtarı formatını (AIzaSy ile başlayan 39 karakter) doğrular.
+ * Fotoğrafı analiz edip tema prompt'uyla birleştirerek Supabase Edge Function üzerinden güvenli dönüşüm yapar.
+ * API anahtarı sunucu tarafında (Supabase Deno Environment) gizlidir.
  */
 export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJson = false, responseSchema = null) {
-  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-
-  // Gerçek Google Gemini API Anahtarı Doğrulaması (AIzaSy ile başlayan 39 karakter)
-  const isValidGeminiKey =
-    typeof apiKey === 'string' &&
-    apiKey.trim().startsWith('AIzaSy') &&
-    apiKey.trim().length === 39;
-
-  if (isValidGeminiKey) {
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
-    for (const model of models) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              { text: themePrompt },
-              { inlineData: { mimeType, data: imageBase64 } },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-          ...(isJson ? { responseMimeType: 'application/json' } : {}),
-          ...(responseSchema ? { responseSchema } : {}),
-        },
-      };
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (textContent) {
-            return {
-              description: textContent,
-              imagePrompt: `Game character based on photo analysis: ${textContent.substring(0, 200)}`,
-            };
-          }
-        }
-      } catch (err) {
-        // Sessiz devam et
-      }
-    }
-  }
-
-  // 2. Supabase Edge Function çağrısı (Eğer yapılandırılmışsa)
   if (isSupabaseConfigured) {
     try {
       const data = await invokeEdgeFunction('convert', {
@@ -195,11 +140,13 @@ export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJs
         };
       }
     } catch (edgeErr) {
-      // Edge Function 401 veya hata dönerse konsola kırmızı yazdırmadan akıcı fallback kullan
+      if (process.env.NODE_ENV === 'development') {
+        console.info('Edge Function çağrısı bilgisi:', edgeErr.message);
+      }
     }
   }
 
-  // 3. Akıllı Demo/Fallback Karakter Üretici (Konsolda SIFIR Kırmızı Hata)
+  // Akıllı Demo/Fallback Karakter Üretici (Sunucu tarafı API olmadığında veya demo modunda)
   const fallbackText = generateFallbackCharacter(themePrompt, isJson);
   return {
     description: fallbackText,
@@ -336,7 +283,7 @@ function readFileAsDataUrl(file) {
 
 /**
  * Görsel üretir. Pollinations AI URL'ini doğrudan döndürür.
- * Tarayıcı konsolunda kırmızı 401/403 hata vermeyecek şekilde akıcı çalışır.
+ * İstemci tarafında sıfır hata ile çalışır.
  */
 export async function generateImage(prompt) {
   const seed = getSecureRandomSeed();
