@@ -75,23 +75,18 @@ function saveLocalLikeState(id, isLiked) {
   }
 }
 
-/**
- * LocalStorage kotalarını aşmamak için güvenli yazma yardımcısı.
- */
 function safeSetLocalStorage(key, items) {
+  if (!Array.isArray(items)) return;
+  // Maximum 15 recent items to keep LocalStorage lightweight and fast
+  const lightItems = items.slice(0, 15);
   try {
-    localStorage.setItem(key, JSON.stringify(items));
+    localStorage.setItem(key, JSON.stringify(lightItems));
   } catch (e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
-      console.warn('LocalStorage kotası aşıldı. Eski veriler budanıyor...');
-      try {
-        const pruned = items.slice(0, Math.max(1, Math.floor(items.length / 2)));
-        localStorage.setItem(key, JSON.stringify(pruned));
-      } catch (err) {
-        console.error('LocalStorage budama sonrası da kaydedilemedi:', err);
-      }
-    } else {
-      console.error('LocalStorage kaydetme hatası:', e);
+    try {
+      const pruned = lightItems.slice(0, 5);
+      localStorage.setItem(key, JSON.stringify(pruned));
+    } catch (err) {
+      // Silent catch
     }
   }
 }
