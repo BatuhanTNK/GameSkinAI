@@ -34,6 +34,93 @@ export function normalizeSkinData(rawSkinData) {
 }
 
 /**
+ * AI tarafından döndürülen JSON yanıtını esnek ve hataya dayanıklı şekilde ayrıştırır.
+ * Markdown kod bloklarını, ham satır sonlarını (\n), kesilmiş tırnakları ve eksik parantezleri onarır.
+ * @param {string} rawText
+ * @returns {Object|null}
+ */
+export function safeParseAiJson(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+
+  // 1. Markdown kod bloklarını temizle
+  let text = rawText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+  // 2. İlk { ve son } arasını al
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    text = text.substring(firstBrace, lastBrace + 1);
+  } else if (firstBrace !== -1) {
+    text = text.substring(firstBrace);
+  }
+
+  // 3. İlk deneme: Doğrudan parse et
+  try {
+    return JSON.parse(text);
+  } catch (e1) {
+    // 4. İkinci deneme: Dize içindeki ham satır sonlarını (\r\n) temizle
+    try {
+      const sanitized = text.replace(/[\r\n]+/g, ' ');
+      return JSON.parse(sanitized);
+    } catch (e2) {
+      // 5. Üçüncü deneme: Kesilmiş tırnak ve süslü parantezleri onar
+      try {
+        let fixed = text.replace(/[\r\n]+/g, ' ').trim();
+        fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+        
+        let quoteCount = 0;
+        let inEscape = false;
+        for (let i = 0; i < fixed.length; i++) {
+          const char = fixed[i];
+          if (char === '\\') {
+            inEscape = !inEscape;
+          } else if (char === '"' && !inEscape) {
+            quoteCount++;
+          } else {
+            inEscape = false;
+          }
+        }
+        if (quoteCount % 2 !== 0) fixed += '"';
+        if (!fixed.endsWith('}')) fixed += '}';
+        return JSON.parse(fixed);
+      } catch (e3) {
+        // 6. Dördüncü deneme: Regex ile alanları ayıkla
+        const extractField = (key) => {
+          const m = rawText.match(new RegExp(`"${key}"\\s*:\\s*(?:"([^"]*)"|([#a-zA-Z0-9_-]+)|(true|false))`, 'i'));
+          if (!m) return null;
+          if (m[1] !== undefined) return m[1];
+          if (m[2] !== undefined) return m[2];
+          if (m[3] !== undefined) return m[3] === 'true';
+          return null;
+        };
+
+        const desc = extractField('description') || extractField('character_description') || extractField('desc');
+        if (desc || extractField('skinColor') || extractField('shirtColor')) {
+          return {
+            description: desc || 'Minecraft karakter skini.',
+            skinColor: extractField('skinColor') || '#C68642',
+            hairColor: extractField('hairColor') || '#2d1e18',
+            hairStyle: extractField('hairStyle') || 'short',
+            eyeColor: extractField('eyeColor') || '#333333',
+            shirtColor: extractField('shirtColor') || '#dd6b20',
+            shirtColor2: extractField('shirtColor2') || '',
+            sleeveLength: extractField('sleeveLength') || 'short',
+            pantsColor: extractField('pantsColor') || '#212121',
+            pantsLength: extractField('pantsLength') || 'long',
+            shoesColor: extractField('shoesColor') || '#111111',
+            hasBeard: extractField('hasBeard') === true,
+            beardColor: extractField('beardColor') || '',
+            accessory: extractField('accessory') || 'none',
+            accessoryColor: extractField('accessoryColor') || '',
+          };
+        }
+        return null;
+      }
+    }
+  }
+}
+
+/**
  * JSON description string'ini parse edip açıklama metni, skinData ve skinImageUrl çıkarır.
  * Parse başarısız olursa orijinal metni döner.
  * @param {string} descriptionStr - Result description string'i (JSON veya düz metin)
@@ -46,22 +133,32 @@ export function parseConversionDescription(descriptionStr, themeSlug = '') {
   let skinImageUrl = null;
   let isMinecraft = false;
 
-  if (descriptionText.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(descriptionText);
+  const parsed = safeParseAiJson(descriptionText);
+  if (parsed) {
+    // Açıklama metnini çıkar
+    descriptionText =
+      parsed.description ||
+      parsed.character_description ||
+      parsed.desc ||
+      parsed.text ||
+      descriptionText;
 
-      // Açıklama metnini çıkar
-      descriptionText =
-        parsed.description ||
-        parsed.character_description ||
-        parsed.desc ||
-        parsed.text ||
-        descriptionText;
+    // Eğer descriptionText hala bir JSON string ise (iç içe serialize edilmişse), tekrar aç
+    if (typeof descriptionText === 'string' && descriptionText.trim().startsWith('{')) {
+      const nested = safeParseAiJson(descriptionText);
+      if (nested) {
+        descriptionText = nested.description || nested.character_description || nested.desc || descriptionText;
+        if (!skinData && (nested.skinColor || nested.shirtColor)) {
+          skinData = normalizeSkinData(nested);
+        }
+      }
+    }
 
-      // Skin görsel URL'i
-      skinImageUrl = parsed.skinImageUrl || null;
+    // Skin görsel URL'i
+    skinImageUrl = parsed.skinImageUrl || null;
 
-      // skinData objesini bul
+    // skinData objesini bul
+    if (!skinData) {
       const rawSd =
         parsed.skinData ||
         parsed.skin_data ||
@@ -73,11 +170,9 @@ export function parseConversionDescription(descriptionStr, themeSlug = '') {
       if (rawSd) {
         skinData = normalizeSkinData(rawSd);
       }
-
-      isMinecraft = themeSlug === 'minecraft' && skinData !== null;
-    } catch (e) {
-      console.error('JSON description parse hatası:', e);
     }
+
+    isMinecraft = themeSlug === 'minecraft' && skinData !== null;
   }
 
   return { descriptionText, skinData, skinImageUrl, isMinecraft };

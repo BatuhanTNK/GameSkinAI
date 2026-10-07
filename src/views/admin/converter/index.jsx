@@ -21,7 +21,7 @@ import ImageUploader from 'components/converter/ImageUploader';
 import StyleSelector, { buildStylePromptSuffix } from 'components/converter/StyleSelector';
 import ConversionResult from 'components/converter/ConversionResult';
 import { MdAutoAwesome, MdBolt, MdLayers, MdDownload, MdErrorOutline } from 'react-icons/md';
-import { normalizeSkinData, parseTextDescriptionToSkinData } from 'lib/skinDataParser';
+import { normalizeSkinData, parseTextDescriptionToSkinData, safeParseAiJson } from 'lib/skinDataParser';
 import { showLocalNotification } from 'lib/notifications';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
@@ -253,39 +253,10 @@ export default function Converter() {
 
     if (isMinecraft) {
       try {
-        let text = aiResult.description.trim();
-        // JSON bloğunu ayıkla (varsa önündeki/arkasındaki markdown ve metinleri temizler)
-        const firstBrace = text.indexOf('{');
-        if (firstBrace !== -1) {
-          const lastBrace = text.lastIndexOf('}');
-          if (lastBrace > firstBrace) {
-            text = text.substring(firstBrace, lastBrace + 1);
-          } else {
-            text = text.substring(firstBrace);
-          }
+        const parsed = safeParseAiJson(aiResult.description);
+        if (!parsed) {
+          throw new Error('Could not parse JSON');
         }
-
-        // Gemini yanıtının sonu kesildiyse tırnak ve süslü parantezi otomatik onar
-        let quoteCount = 0;
-        let inEscape = false;
-        for (let i = 0; i < text.length; i++) {
-          const char = text[i];
-          if (char === '\\') {
-            inEscape = !inEscape;
-          } else if (char === '"' && !inEscape) {
-            quoteCount++;
-          } else {
-            inEscape = false;
-          }
-        }
-        if (quoteCount % 2 !== 0) {
-          text += '"';
-        }
-        if (!text.endsWith('}')) {
-          text += '}';
-        }
-
-        const parsed = JSON.parse(text);
 
         // Gemini farklı key isimleri kullanabilir - hepsini dene
         const desc = parsed.description
@@ -317,8 +288,11 @@ export default function Converter() {
       } catch (err) {
         // Kesilen JSON ayrıştırılamazsa sessizce metin yedek ayrıştırıcısını çalıştır
         const fallbackSkinData = parseTextDescriptionToSkinData(aiResult.description);
+        const rawMatch = aiResult.description.match(/"description"\s*:\s*"([^"]+)"/i);
+        const cleanDesc = rawMatch ? rawMatch[1] : aiResult.description;
+        userFriendlyDescription = cleanDesc;
         finalDescription = JSON.stringify({
-          description: aiResult.description,
+          description: cleanDesc,
           skinData: fallbackSkinData,
         });
       }
