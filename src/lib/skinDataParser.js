@@ -4,9 +4,60 @@
  * JSON parse + normalize mantığını merkezileştirir.
  */
 
+export const COLOR_MAP = {
+  red: '#e53e3e',
+  kırmızı: '#e53e3e',
+  orange: '#dd6b20',
+  turuncu: '#dd6b20',
+  yellow: '#d69e2e',
+  sarı: '#d69e2e',
+  green: '#38a169',
+  yeşil: '#38a169',
+  lime: '#76ff7a',
+  blue: '#3182ce',
+  mavi: '#3182ce',
+  'dark blue': '#1a365d',
+  'koyu mavi': '#1a365d',
+  navy: '#1a365d',
+  lacivert: '#1a365d',
+  purple: '#805ad5',
+  mor: '#805ad5',
+  pink: '#d53f8c',
+  pembe: '#d53f8c',
+  black: '#1a1a1a',
+  siyah: '#1a1a1a',
+  white: '#ffffff',
+  beyaz: '#ffffff',
+  grey: '#718096',
+  gray: '#718096',
+  gri: '#718096',
+  brown: '#8b4513',
+  kahverengi: '#8b4513',
+  'dark brown': '#4a2f1b',
+  'koyu kahverengi': '#4a2f1b',
+  leather: '#78350f',
+  tan: '#c68642',
+  beige: '#e2ba8d',
+};
+
+export function resolveColor(val, fallback = '#1a1a1a') {
+  if (!val) return fallback;
+  if (typeof val === 'object') {
+    return resolveColor(val.color || val.hex || val.clothing || '', fallback);
+  }
+  const str = String(val).trim().toLowerCase();
+  if (str.startsWith('#') && (str.length === 7 || str.length === 4)) {
+    return str;
+  }
+  for (const [name, hex] of Object.entries(COLOR_MAP)) {
+    if (str.includes(name)) return hex;
+  }
+  return fallback;
+}
+
 /**
  * Gemini API'den gelen JSON açıklamayı standart skinData formatına normalize eder.
- * Farklı key isimleri (camelCase, snake_case vb.) desteklenir.
+ * Düz (flat) veya iç içe (nested) JSON yapılarını ve renk isimlerini çözer.
  * @param {Object} rawSkinData - Ham skin verisi objesi
  * @returns {Object} Normalize edilmiş skinData objesi
  */
@@ -15,21 +66,84 @@ export function normalizeSkinData(rawSkinData) {
 
   const sd = rawSkinData;
 
+  // İç içe nesneler (Gemini sıkça { head: {...}, torso: {...}, legs: {...} } döner)
+  const head = sd.head || {};
+  const torso = sd.torso || {};
+  const legs = sd.legs || {};
+  const arms = sd.arms || {};
+
+  // Saç
+  const rawHair = sd.hairColor || sd.hair_color || head.hair?.color || head.hair || '#2d1e18';
+  const hairColor = resolveColor(rawHair, '#2d1e18');
+  const hairStyle = sd.hairStyle || sd.hair_style || head.hair?.style || 'short';
+
+  // Ten rengi
+  const rawSkin = sd.skinColor || sd.skin_color || sd.skinTone || sd.skin_tone || head.skin?.color || '#C68642';
+  const skinColor = resolveColor(rawSkin, '#C68642');
+
+  // Göz rengi
+  const rawEye = sd.eyeColor || sd.eye_color || head.eyes?.color || head.eyes || '#333333';
+  const eyeColor = resolveColor(rawEye, '#333333');
+
+  // Sakal / Bıyık
+  const facialHair = head.facial_hair || head.facialHair || {};
+  const facialType = typeof facialHair === 'string' ? facialHair.toLowerCase() : (facialHair.type || '').toLowerCase();
+  const hasBeard = Boolean(
+    sd.hasBeard === true || sd.hasBeard === 'true' ||
+    sd.has_beard === true || sd.has_beard === 'true' ||
+    sd.beard === true || sd.beard === 'true' ||
+    facialType.includes('beard') || facialType.includes('sakal') || facialType.includes('mustache') ||
+    (typeof sd.beardColor === 'string' && sd.beardColor.length > 2 && sd.beardColor !== 'none') ||
+    Boolean(facialHair.color)
+  );
+  const rawBeardColor = sd.beardColor || sd.beard_color || facialHair.color || hairColor;
+  const beardColor = resolveColor(rawBeardColor, hairColor);
+
+  // Üst giyim (Gömlek, Ceket, Deri Mont, Yelek vb.)
+  const torsoOuter = torso.outer_layer || torso.clothing || torso.top || {};
+  const torsoInner = torso.inner_layer || {};
+  const rawShirt = sd.shirtColor || sd.shirt_color || sd.clothingColor || sd.clothing_color ||
+    sd.jacketColor || sd.jacket_color || sd.coatColor || sd.coat_color ||
+    sd.topColor || sd.top_color || sd.outfitColor || sd.outfit_color ||
+    sd.vestColor || sd.vest_color ||
+    torsoOuter.clothing || torsoOuter.color || torso.color || torsoInner.clothing ||
+    '#78350f';
+  const shirtColor = resolveColor(rawShirt, '#78350f');
+
+  // Pantolon
+  const legsPants = legs.pants || legs.bottom || {};
+  const rawPants = sd.pantsColor || sd.pants_color || sd.trousersColor || sd.shortsColor ||
+    legsPants.color || legsPants.clothing || legs.color || '#1a365d';
+  const pantsColor = resolveColor(rawPants, '#1a365d');
+
+  // Ayakkabı
+  const legsShoes = legs.shoes || legs.boots || legs.footwear || {};
+  const rawShoes = sd.shoesColor || sd.shoes_color || legsShoes.color || legsShoes.clothing || '#1a1a1a';
+  const shoesColor = resolveColor(rawShoes, '#1a1a1a');
+
+  // Uzunluklar
+  const sleeveLength = sd.sleeveLength || sd.sleeve_length || (arms.sleeves?.includes('short') ? 'short' : 'long');
+  const pantsLength = sd.pantsLength || sd.pants_length || (legsPants.style?.includes('short') ? 'short' : 'long');
+
+  // Aksesuar
+  const accessory = sd.accessory || sd.hat || head.hat || head.accessory || 'none';
+  const accessoryColor = resolveColor(sd.accessoryColor || sd.accessory_color, '#e53e3e');
+
   return {
-    skinColor: sd.skinColor || sd.skin_color || sd.skinTone || sd.skin_tone || '#C68642',
-    hairColor: sd.hairColor || sd.hair_color || '#2d1e18',
-    hairStyle: sd.hairStyle || sd.hair_style || 'short',
-    eyeColor: sd.eyeColor || sd.eye_color || '#333333',
-    shirtColor: sd.shirtColor || sd.shirt_color || sd.clothingColor || sd.clothing_color || '#2353a2',
-    shirtColor2: sd.shirtColor2 || sd.shirt_color_2 || sd.secondaryColor || sd.secondary_color || '',
-    sleeveLength: sd.sleeveLength || sd.sleeve_length || 'short',
-    pantsColor: sd.pantsColor || sd.pants_color || '#212121',
-    pantsLength: sd.pantsLength || sd.pants_length || 'long',
-    shoesColor: sd.shoesColor || sd.shoes_color || '#1a1a1a',
-    hasBeard: sd.hasBeard ?? sd.has_beard ?? sd.beard ?? false,
-    beardColor: sd.beardColor || sd.beard_color || sd.hairColor || sd.hair_color || '#2d1e18',
-    accessory: sd.accessory || sd.hat || sd.headwear || 'none',
-    accessoryColor: sd.accessoryColor || sd.accessory_color || '#e53e3e',
+    skinColor,
+    hairColor,
+    hairStyle,
+    eyeColor,
+    shirtColor,
+    shirtColor2: sd.shirtColor2 || sd.shirt_color_2 || '',
+    sleeveLength,
+    pantsColor,
+    pantsLength,
+    shoesColor,
+    hasBeard,
+    beardColor,
+    accessory: typeof accessory === 'string' ? accessory : 'none',
+    accessoryColor,
   };
 }
 
@@ -187,40 +301,14 @@ export function parseConversionDescription(descriptionStr, themeSlug = '') {
 export function parseTextDescriptionToSkinData(text) {
   const lowercase = (text || '').toLowerCase();
   
-  const colorMap = {
-    red: '#e53e3e',
-    kırmızı: '#e53e3e',
-    orange: '#dd6b20',
-    turuncu: '#dd6b20',
-    yellow: '#d69e2e',
-    sarı: '#d69e2e',
-    green: '#38a169',
-    yeşil: '#38a169',
-    blue: '#3182ce',
-    mavi: '#3182ce',
-    purple: '#805ad5',
-    mor: '#805ad5',
-    pink: '#d53f8c',
-    pembe: '#d53f8c',
-    black: '#1a1a1a',
-    siyah: '#1a1a1a',
-    white: '#ffffff',
-    beyaz: '#ffffff',
-    grey: '#718096',
-    gray: '#718096',
-    gri: '#718096',
-    brown: '#8b4513',
-    kahverengi: '#8b4513',
-  };
-  
   const skinData = {
     skinColor: '#e29a6f',
     hairColor: '#2d1e18',
     hairStyle: 'short',
     eyeColor: '#32587f',
-    shirtColor: '#2353a2',
-    sleeveLength: 'short',
-    pantsColor: '#212121',
+    shirtColor: '#78350f',
+    sleeveLength: 'long',
+    pantsColor: '#1a365d',
     shoesColor: '#1a1a1a',
     hasBeard: false,
     beardColor: '#2d1e18',
@@ -282,7 +370,7 @@ export function parseTextDescriptionToSkinData(text) {
 
   const hasWord = (str, word) => new RegExp('\\b' + word + '\\b', 'i').test(str);
 
-  const shirtKeywords = ['shirt', 'top', 'jersey', 'tişört', 'kazak', 'forma', 'üst', 'vest', 'sweater', 'hoodie', 'blouse'];
+  const shirtKeywords = ['shirt', 'top', 'jersey', 'jacket', 'coat', 'leather', 'vest', 'sweater', 'hoodie', 'blouse', 'armor', 'tişört', 'kazak', 'forma', 'üst', 'ceket', 'mont', 'yelek', 'deri', 'zırh'];
   let shirtIndex = -1;
   for (const keyword of shirtKeywords) {
     const idx = lowercase.indexOf(keyword);
@@ -296,10 +384,10 @@ export function parseTextDescriptionToSkinData(text) {
     const start = Math.max(0, shirtIndex - 30);
     const end = Math.min(lowercase.length, shirtIndex + 35);
     const windowText = lowercase.substring(start, end);
-    for (const [colorName, colorHex] of Object.entries(colorMap)) {
+    for (const [colorName, colorHex] of Object.entries(COLOR_MAP)) {
       if (hasWord(windowText, colorName)) {
         skinData.shirtColor = colorHex;
-        for (const [colorName2, colorHex2] of Object.entries(colorMap)) {
+        for (const [colorName2, colorHex2] of Object.entries(COLOR_MAP)) {
           if (colorHex2 !== colorHex && hasWord(windowText, colorName2)) {
             skinData.shirtColor2 = colorHex2;
             break;
@@ -309,7 +397,7 @@ export function parseTextDescriptionToSkinData(text) {
       }
     }
   } else {
-    for (const [colorName, colorHex] of Object.entries(colorMap)) {
+    for (const [colorName, colorHex] of Object.entries(COLOR_MAP)) {
       if (hasWord(lowercase, colorName)) {
         skinData.shirtColor = colorHex;
         break;

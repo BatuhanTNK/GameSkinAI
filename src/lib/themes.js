@@ -39,9 +39,11 @@ Use EXACTLY this flat JSON format:
 Rules:
 - skinColor: Match the person's actual skin tone precisely (e.g. #C68642 for medium brown, #FFDFC4 for fair, #8D5524 for dark)
 - hairColor: Match the actual hair color you see
-- shirtColor: Match the dominant color of their shirt/clothing (e.g. #dd6b20 for orange)
-- shirtColor2: If their shirt has stripes, you MUST identify the stripe color (e.g. #ffffff for white stripes).
-- pantsColor: Match the dominant color of their pants/shorts (e.g. #111e38 for dark blue shorts)
+- shirtColor: Match the dominant color of their shirt/jacket/clothing/armor (e.g. #8B4513 for brown leather jacket, #2B3A4A for dark, #DD6B20 for orange)
+- shirtColor2: If their shirt has stripes or secondary accents, provide the hex color, otherwise empty string
+- pantsColor: Match the dominant color of their pants/shorts/trousers (e.g. #1A365D for jeans/blue, #111111 for black)
+- hasBeard: MUST be true if the person has ANY beard, stubble, goatee, or mustache. False only if completely clean-shaven.
+- beardColor: Hex color of their facial hair, empty string if no beard.
 - All color values MUST be valid 6-digit hex starting with #`
   },
   {

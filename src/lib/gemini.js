@@ -282,10 +282,27 @@ function readFileAsDataUrl(file) {
 }
 
 /**
- * Görsel üretir. Pollinations AI URL'ini doğrudan döndürür.
- * İstemci tarafında sıfır hata ile çalışır.
+ * Görsel üretir. Önce Supabase Edge Function üzerinden Imagen API'yi dener,
+ * başarısız olursa güvenli Pollinations AI fallback'i döndürür.
  */
 export async function generateImage(prompt) {
+  if (isSupabaseConfigured) {
+    try {
+      const data = await invokeEdgeFunction('convert', {
+        action: 'generateImage',
+        prompt,
+      });
+
+      if (data?.imageBase64) {
+        return data.imageBase64;
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Edge Function generateImage fallback:', err.message);
+      }
+    }
+  }
+
   const seed = getSecureRandomSeed();
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`;
 }
@@ -294,5 +311,5 @@ export async function generateImage(prompt) {
  * Minecraft skin görseli üretir.
  */
 export async function generateSkinImage(imageBase64, mimeType, characterDescription) {
-  return generateImage(`Full body Minecraft character skin model based on: ${characterDescription}`);
+  return generateImage(`Full body authentic Minecraft 3D cubic voxel character model based on: ${characterDescription}`);
 }

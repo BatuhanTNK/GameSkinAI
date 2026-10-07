@@ -133,52 +133,76 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, imageBase64, mimeType, themePrompt, isJson, responseSchema, prompt } = body;
+    const { action, imageBase64, mimeType, themePrompt, isJson, responseSchema, prompt, testModel } = body;
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
 
+    if (action === "listModels") {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey?.trim()}`);
+      const data = await resp.json();
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     if (action === "analyze") {
+      let debugError = "";
       if (apiKey && apiKey.trim().length > 10) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`;
-        const requestBody = {
-          contents: [
-            {
-              parts: [
-                { text: themePrompt },
-                { inlineData: { mimeType, data: imageBase64 } },
-              ],
+        const candidateModels = testModel
+          ? [testModel]
+          : [
+              "gemini-3.5-flash-lite",
+              "gemini-flash-lite-latest",
+              "gemini-3.7-flash",
+              "gemini-2.5-flash"
+            ];
+        for (const modelName of candidateModels) {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
+          const requestBody = {
+            contents: [
+              {
+                parts: [
+                  { text: themePrompt },
+                  { inlineData: { mimeType, data: imageBase64 } },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 1024,
+              ...(isJson ? { responseMimeType: "application/json" } : {}),
             },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 1024,
-            ...(isJson ? { responseMimeType: "application/json" } : {}),
-            ...(responseSchema ? { responseSchema } : {}),
-          },
-        };
+          };
 
-        try {
-          const aiResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
+          try {
+            const aiResponse = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
 
-          if (aiResponse.ok) {
-            const data = await aiResponse.json();
-            const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (textContent) {
-              return new Response(
-                JSON.stringify({ description: textContent }),
-                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+            if (aiResponse.ok) {
+              const data = await aiResponse.json();
+              const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (textContent) {
+                return new Response(
+                  JSON.stringify({ description: textContent, modelUsed: modelName }),
+                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+            } else {
+              const errBody = await aiResponse.text();
+              console.warn(`Model ${modelName} returned ${aiResponse.status}:`, errBody);
             }
+          } catch (fetchErr: any) {
+            console.warn(`Fetch error for ${modelName}:`, fetchErr);
           }
-        } catch (fetchErr) {
-          console.warn("Gemini fetch error:", fetchErr);
         }
+      } else {
+        console.warn("GEMINI_API_KEY is missing or invalid in Edge Function environment.");
       }
 
       // Akıllı Fallback Karakter Açıklaması (Sıfır Hata Korumalı 200 OK)
@@ -189,29 +213,32 @@ serve(async (req) => {
       );
     } else if (action === "generateImage") {
       if (apiKey && apiKey.trim().length > 10) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey.trim()}`;
-        const requestBody = {
-          instances: [{ prompt }],
-          parameters: { aspectRatio: "1:1", numberOfImages: 1, outputMimeType: "image/jpeg" },
-        };
+        const imagenModels = ["imagen-3.0-generate-002", "imagen-4.0-generate-001"];
+        for (const imgModel of imagenModels) {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${imgModel}:predict?key=${apiKey.trim()}`;
+          const requestBody = {
+            instances: [{ prompt }],
+            parameters: { aspectRatio: "1:1", numberOfImages: 1, outputMimeType: "image/jpeg" },
+          };
 
-        try {
-          const imgResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
+          try {
+            const imgResponse = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
 
-          if (imgResponse.ok) {
-            const data = await imgResponse.json();
-            if (data.predictions?.[0]?.bytesBase64Encoded) {
-              return new Response(
-                JSON.stringify({ imageBase64: data.predictions[0].bytesBase64Encoded }),
-                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+            if (imgResponse.ok) {
+              const data = await imgResponse.json();
+              if (data.predictions?.[0]?.bytesBase64Encoded) {
+                return new Response(
+                  JSON.stringify({ imageBase64: data.predictions[0].bytesBase64Encoded }),
+                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
 
       const randomBuffer = new Uint32Array(1);

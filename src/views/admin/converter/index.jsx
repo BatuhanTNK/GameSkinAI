@@ -310,7 +310,7 @@ export default function Converter() {
     let resultImageUrl = '';
     const styleSuffix = buildStylePromptSuffix(styleSettings);
     const imagePrompt = (isMinecraft
-      ? `Stunning official Minecraft game keyart illustration style, highly detailed 3D blocky voxel character based on: ${safeDescription}. Dynamic heroic pose, volumetric studio lighting, soft ambient occlusion, vibrant colors, clean soft background, premium game cover render.`
+      ? `Authentic 3D Minecraft character model, sharp cubic voxel blocks, pure Minecraft keyart style based on: ${safeDescription}. Cubic head, cubic hands, blocky body, dynamic pose, studio lighting, clean background, no smooth curves, true Minecraft game aesthetic.`
       : `${theme.label} character based on: ${safeDescription}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`) + styleSuffix;
 
     try {
