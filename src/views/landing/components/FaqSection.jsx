@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { MdExpandMore } from "react-icons/md";
+import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "contexts/TranslationContext";
 
 const FaqSection = () => {
@@ -75,11 +76,21 @@ const FaqSection = () => {
                     }`}
                   />
                 </button>
-                {isOpen && (
-                  <div className="px-5 pb-5 text-sm sm:text-base text-gray-600 dark:text-gray-300 leading-relaxed border-t border-gray-100 dark:border-navy-700/60 pt-4">
-                    {item.answer}
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      key="content"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                    >
+                      <div className="px-5 pb-5 text-sm sm:text-base text-gray-600 dark:text-gray-300 leading-relaxed border-t border-gray-100 dark:border-navy-700/60 pt-4">
+                        {item.answer}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}

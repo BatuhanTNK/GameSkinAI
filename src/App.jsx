@@ -10,6 +10,8 @@ import { useAuth } from "contexts/AuthContext";
 import AdminLayout from "layouts/admin";
 import AuthLayout from "layouts/auth";
 import LandingPage from "views/landing";
+import PublicSkinPage from "views/skin";
+import PublicUserPage from "views/user";
 
 /**
  * Korumalı route bileşeni.
@@ -51,6 +53,14 @@ const App = () => {
       {/* Anasayfa / Karşılama Rotaları */}
       <Route path="/" element={<LandingPage />} />
       <Route path=":lang" element={<LandingPage />} />
+
+      {/* Paylaşılabilir public skin detay sayfası (giriş gerektirmez) */}
+      <Route path=":lang/skin/:id" element={<PublicSkinPage />} />
+      <Route path="skin/:id" element={<PublicSkinPage />} />
+
+      {/* Public üretici profil sayfası (giriş gerektirmez) */}
+      <Route path=":lang/user/:userId" element={<PublicUserPage />} />
+      <Route path="user/:userId" element={<PublicUserPage />} />
 
       {/* URL ile dil desteği (/tr/admin/converter, /en/admin/converter vb.) */}
       <Route path=":lang/auth/*" element={<AuthLayout />} />

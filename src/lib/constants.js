@@ -24,6 +24,9 @@ export const UPLOAD_LIMITS = {
 /** Rate limiting - saniye cinsinden */
 export const RATE_LIMIT_SECONDS = 30;
 
+/** Günlük ücretsiz dönüşüm kredisi limiti */
+export const DAILY_CREDIT_LIMIT = 5;
+
 export const GEMINI_CONFIG = {
   MODEL: 'gemini-2.5-flash',
   API_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/models',
@@ -33,6 +36,10 @@ export const GEMINI_CONFIG = {
 export const TABLES = {
   CONVERSIONS: 'conversions',
   THEMES: 'themes',
+  PROFILES: 'profiles',
+  FOLLOWS: 'follows',
+  COMMENTS: 'comments',
+  CHALLENGES: 'challenges',
 };
 
 /** Route yolları */

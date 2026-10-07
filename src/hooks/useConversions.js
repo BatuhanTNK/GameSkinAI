@@ -4,7 +4,7 @@
  * Her kullanıcının beğeni durumunu yerel bellekte saklayarak ID-bazlı 1 beğeni sınırı getirir.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from 'lib/supabase';
 import { useAuth } from 'contexts/AuthContext';
 import { TABLES } from 'lib/constants';
@@ -106,6 +106,12 @@ export function useConversions() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Art arda eklemelerde (batch dönüşüm) bayat closure'ı önlemek için güncel liste referansı
+  const conversionsRef = useRef(conversions);
+  useEffect(() => {
+    conversionsRef.current = conversions;
+  }, [conversions]);
 
   /**
    * Kullanıcının tüm dönüşümlerini getirir.
@@ -215,6 +221,8 @@ export function useConversions() {
       const newConversion = {
         ...conversionData,
         user_id: user.id,
+        // Galeri ve public sayfalarda üretici adı gösterimi için denormalize alan
+        user_display_name: user.user_metadata?.display_name || null,
       };
 
       const demoData = {
@@ -222,7 +230,9 @@ export function useConversions() {
         id: 'conv-' + Date.now(),
         created_at: new Date().toISOString(),
       };
-      const updated = [demoData, ...conversions];
+      // Bayat closure yerine ref'teki güncel listeyi kullan (batch'te art arda ekleme)
+      const updated = [demoData, ...conversionsRef.current];
+      conversionsRef.current = updated;
       setConversions(updated);
       safeSetLocalStorage('gameskinai_conversions', updated);
 
@@ -240,8 +250,10 @@ export function useConversions() {
         console.warn('Supabase kayıt uyarısı, yerel veri kullanılıyor:', insertError.message);
         return { data: demoData, error: null };
       }
-      
-      setConversions((prev) => [data, ...prev.filter((c) => c.id !== demoData.id)]);
+
+      const replaced = [data, ...conversionsRef.current.filter((c) => c.id !== demoData.id)];
+      conversionsRef.current = replaced;
+      setConversions(replaced);
 
       return { data, error: null };
     } catch (err) {
@@ -337,7 +349,7 @@ export function useConversions() {
     try {
       const { data, error: fetchErr } = await supabase
         .from(TABLES.CONVERSIONS)
-        .select('id, theme_slug, theme_label, result_image_url, result_description, created_at, likes_count, is_public')
+        .select('id, theme_slug, theme_label, result_image_url, result_description, created_at, likes_count, is_public, user_id, user_display_name')
         .eq('is_public', true)
         .order('created_at', { ascending: false });
 
@@ -419,4 +431,53 @@ export function useConversions() {
     togglePublic,
     toggleLike,
   };
+}
+
+/**
+ * Tek bir public dönüşümü id ile getirir (giriş gerektirmez).
+ * Public skin detay sayfası (/:lang/skin/:id) tarafından kullanılır.
+ * Supabase RLS politikası is_public=true kayıtları anonim okumaya izin verir;
+ * demo modda localStorage'daki public kayıtlara bakılır.
+ * @param {string} id - Dönüşüm id'si
+ * @returns {Promise<Object|null>} Public dönüşüm kaydı veya null
+ */
+export async function fetchPublicConversionById(id) {
+  if (!id) return null;
+
+  // Yerel (demo) kayıtlar
+  const readLocal = () => {
+    try {
+      const stored = localStorage.getItem('gameskinai_conversions');
+      const list = stored ? JSON.parse(stored) : [];
+      const publicMap = getLocalPublicMap();
+      const found = list.find((c) => c.id === id);
+      if (found && (found.is_public || publicMap[found.id])) {
+        // Orijinal fotoğraf gizlilik gereği public sayfada gösterilmez
+        return { ...found, original_image_url: null, is_public: true };
+      }
+    } catch (e) {
+      // yoksay
+    }
+    return null;
+  };
+
+  if (!isSupabaseConfigured || !isValidUuid(id)) {
+    return readLocal();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.CONVERSIONS)
+      .select('id, theme_slug, theme_label, result_image_url, result_description, created_at, likes_count, is_public, user_id, user_display_name')
+      .eq('id', id)
+      .eq('is_public', true)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) return data;
+    return readLocal();
+  } catch (err) {
+    console.warn('Public dönüşüm çekme uyarısı, yerel veriler deneniyor:', err.message);
+    return readLocal();
+  }
 }

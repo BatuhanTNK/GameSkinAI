@@ -7,9 +7,13 @@ import React from "react";
 
 // Admin Imports
 import Converter from "views/admin/converter";
+import Dashboard from "views/admin/dashboard";
 import History from "views/admin/history";
 import Profile from "views/admin/profile";
 import Marketplace from "views/admin/marketplace";
+import PromptLibrary from "views/admin/prompts";
+import AdminPanel from "views/admin/adminpanel";
+import ChallengePage from "views/admin/challenge";
 import LandingPage from "views/landing";
 
 // Auth Imports
@@ -28,6 +32,10 @@ import {
   MdPersonAdd,
   MdKey,
   MdHome,
+  MdDashboard,
+  MdLibraryBooks,
+  MdAdminPanelSettings,
+  MdEmojiEvents,
 } from "react-icons/md";
 
 const routes = [
@@ -47,6 +55,13 @@ const routes = [
     component: <Converter />,
   },
   {
+    name: "İstatistiklerim",
+    layout: "/admin",
+    path: "dashboard",
+    icon: <MdDashboard className="h-6 w-6" />,
+    component: <Dashboard />,
+  },
+  {
     name: "Geçmişim",
     layout: "/admin",
     path: "history",
@@ -61,11 +76,33 @@ const routes = [
     component: <Marketplace />,
   },
   {
+    name: "Haftalık Yarışma",
+    layout: "/admin",
+    path: "challenge",
+    icon: <MdEmojiEvents className="h-6 w-6" />,
+    component: <ChallengePage />,
+  },
+  {
+    name: "Prompt Kütüphanesi",
+    layout: "/admin",
+    path: "prompts",
+    icon: <MdLibraryBooks className="h-6 w-6" />,
+    component: <PromptLibrary />,
+  },
+  {
     name: "Profilim",
     layout: "/admin",
     path: "profile",
     icon: <MdPerson className="h-6 w-6" />,
     component: <Profile />,
+  },
+  {
+    name: "Admin Paneli",
+    layout: "/admin",
+    path: "adminpanel",
+    icon: <MdAdminPanelSettings className="h-6 w-6" />,
+    component: <AdminPanel />,
+    adminOnly: true,
   },
 
   {

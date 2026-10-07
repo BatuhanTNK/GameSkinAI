@@ -73,11 +73,13 @@ const COLOR_MAP = {
 /**
  * Tema seçim kartları bileşeni.
  * @param {Object} props
- * @param {string|null} props.selectedTheme - Seçili tema slug'ı
+ * @param {string|null} props.selectedTheme - Seçili tema slug'ı (tekli mod)
  * @param {Function} props.onSelect - Tema seçim callback'i
  * @param {boolean} props.disabled - Seçim devre dışı mı
+ * @param {boolean} props.multiSelect - Çoklu seçim modu (batch dönüşüm)
+ * @param {string[]} props.selectedThemes - Seçili tema slug'ları (çoklu mod)
  */
-export default function ThemeSelector({ selectedTheme, onSelect, disabled, themes = [] }) {
+export default function ThemeSelector({ selectedTheme, onSelect, disabled, themes = [], multiSelect = false, selectedThemes = [] }) {
   const { lang } = useTranslation();
   const themesToDisplay = themes && themes.length > 0 ? themes : THEMES;
 
@@ -86,7 +88,9 @@ export default function ThemeSelector({ selectedTheme, onSelect, disabled, theme
       {themesToDisplay.map((theme) => {
         const gameLogo = getGameLogo(theme.slug, "h-11 w-11");
         const colors = COLOR_MAP[theme.color] || COLOR_MAP.purple;
-        const isSelected = selectedTheme === theme.slug;
+        const isSelected = multiSelect
+          ? selectedThemes.includes(theme.slug)
+          : selectedTheme === theme.slug;
         const descriptionText = lang === 'en' ? (theme.description_en || theme.description) : theme.description;
 
         return (
@@ -157,10 +161,14 @@ ThemeSelector.propTypes = {
   onSelect: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
   themes: PropTypes.array,
+  multiSelect: PropTypes.bool,
+  selectedThemes: PropTypes.arrayOf(PropTypes.string),
 };
 
 ThemeSelector.defaultProps = {
   selectedTheme: null,
   disabled: false,
   themes: [],
+  multiSelect: false,
+  selectedThemes: [],
 };

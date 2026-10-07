@@ -6,11 +6,19 @@
 import React, { useState } from 'react';
 import { useAuth } from 'contexts/AuthContext';
 import { useConversions } from 'hooks/useConversions';
+import { useCredits } from 'hooks/useCredits';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
 import { THEMES } from 'lib/themes';
 import { getGameLogo } from 'components/converter/GameLogos';
 import { supabase, isSupabaseConfigured } from 'lib/supabase';
+import { usePwaInstall } from 'hooks/usePwaInstall';
+import {
+  getNotificationPreference,
+  setNotificationPreference,
+  getNotificationPermission,
+  requestNotificationPermission,
+} from 'lib/notifications';
 import {
   MdPerson,
   MdEmail,
@@ -30,6 +38,9 @@ import {
   MdVpnKey,
   MdCheck,
   MdClose,
+  MdNotificationsActive,
+  MdNotificationsOff,
+  MdInstallMobile,
 } from 'react-icons/md';
 import { HiSparkles } from 'react-icons/hi2';
 
@@ -49,6 +60,7 @@ const AVATAR_PRESETS = [
 export default function Profile() {
   const { user, isDemo, updateProfile, updatePassword } = useAuth();
   const { conversions } = useConversions();
+  const { remaining: creditsRemaining, limit: creditsLimit } = useCredits();
   const { showToast } = useToast();
   const { t, lang } = useTranslation();
 
@@ -69,6 +81,39 @@ export default function Profile() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [suggestedNotice, setSuggestedNotice] = useState(false);
+
+  // PWA & Bildirim ayarları (ozellik_onerileri.md #15)
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [notifEnabled, setNotifEnabled] = useState(
+    () => getNotificationPreference() && getNotificationPermission() === 'granted'
+  );
+
+  /** Bildirim toggle işleyicisi: açarken tarayıcı izni ister. */
+  const handleToggleNotifications = async () => {
+    if (notifEnabled) {
+      setNotificationPreference(false);
+      setNotifEnabled(false);
+      showToast(t('pwa.notifDisabled'), 'info');
+      return;
+    }
+    const permission = await requestNotificationPermission();
+    if (permission === 'granted') {
+      setNotifEnabled(true);
+      showToast(t('pwa.notifEnabled'), 'success');
+    } else if (permission === 'denied') {
+      showToast(t('pwa.notifBlocked'), 'error');
+    } else if (permission === 'unsupported') {
+      showToast(t('pwa.notifUnsupported'), 'error');
+    }
+  };
+
+  /** Uygulamayı ana ekrana ekleme işleyicisi. */
+  const handleInstallApp = async () => {
+    const accepted = await promptInstall();
+    if (accepted) {
+      showToast(t('pwa.installSuccess'), 'success');
+    }
+  };
 
   // Güçlü Şifre Kriterleri (Kayıt Sayfası ile Birebir Aynı, Çeviri Destekli)
   const pwRequirements = [
@@ -165,6 +210,27 @@ export default function Profile() {
     return { title: t('profile.rankRookie'), color: 'text-green-500 bg-green-500/10' };
   };
   const rankInfo = getUserRank(totalConversions);
+
+  // Gerçek Metriklere Bağlı Başarım Sistemi (ozellik_onerileri.md #2)
+  const uniqueThemeCount = new Set(conversions.map((c) => c.theme_slug).filter(Boolean)).size;
+  const totalLikes = conversions.reduce((sum, c) => sum + (c.likes_count || 0), 0);
+  const publicShareCount = conversions.filter((c) => c.is_public).length;
+  const dailyCounts = conversions.reduce((acc, c) => {
+    const day = (c.created_at || '').slice(0, 10);
+    if (day) acc[day] = (acc[day] || 0) + 1;
+    return acc;
+  }, {});
+  const maxDailyConversions = Object.values(dailyCounts).reduce((max, n) => Math.max(max, n), 0);
+
+  const achievements = [
+    { key: 'firstSkin', icon: '🎮', title: t('profile.achFirstSkin'), desc: t('profile.achFirstSkinDesc'), current: totalConversions, target: 1 },
+    { key: 'themes', icon: '🗺️', title: t('profile.achThemes'), desc: t('profile.achThemesDesc'), current: uniqueThemeCount, target: 5 },
+    { key: 'public', icon: '🌍', title: t('profile.achPublic'), desc: t('profile.achPublicDesc'), current: publicShareCount, target: 1 },
+    { key: 'daily', icon: '⚡', title: t('profile.achDaily'), desc: t('profile.achDailyDesc'), current: maxDailyConversions, target: 5 },
+    { key: 'likes', icon: '❤️', title: t('profile.achLikes'), desc: t('profile.achLikesDesc'), current: totalLikes, target: 10 },
+    { key: 'master', icon: '🏆', title: t('profile.achMaster'), desc: t('profile.achMasterDesc'), current: totalConversions, target: 15 },
+  ].map((a) => ({ ...a, unlocked: a.current >= a.target }));
+  const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
   /**
    * Profil Bilgilerini Veritabanında Günceller.
@@ -345,31 +411,145 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Rozetler & Başarımlar */}
-          <div className="rounded-[24px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none border border-gray-100 dark:border-white/5">
-            <h4 className="mb-4 flex items-center gap-2 text-base font-bold text-navy-700 dark:text-white">
-              <MdStar className="h-5 w-5 text-yellow-500" />
-              {t('profile.rankTitle')}
+          {/* Günlük Kredi Durumu */}
+          <div className="rounded-[22px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none border border-gray-100 dark:border-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-500 dark:bg-amber-500/20">
+                  <HiSparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('profile.creditsTitle')}
+                  </p>
+                  <p className="text-lg font-black text-navy-700 dark:text-white">
+                    {creditsRemaining} / {creditsLimit}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-navy-700">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  creditsRemaining > 0 ? 'bg-gradient-to-r from-brand-400 to-brand-600' : 'bg-red-500'
+                }`}
+                style={{ width: `${(creditsRemaining / creditsLimit) * 100}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+              {t('profile.creditsNote', { limit: creditsLimit })}
+            </p>
+          </div>
+
+          {/* Uygulama & Bildirimler (PWA, ozellik_onerileri.md #15) */}
+          <div className="rounded-[22px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none border border-gray-100 dark:border-white/5">
+            <h4 className="mb-3 flex items-center gap-2 text-base font-bold text-navy-700 dark:text-white">
+              <MdInstallMobile className="h-5 w-5 text-brand-500" />
+              {t('pwa.cardTitle')}
             </h4>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center rounded-xl bg-gray-50 p-3 text-center dark:bg-navy-700/50">
-                <span className="text-2xl">🎮</span>
-                <span className="mt-1 text-[11px] font-bold text-navy-700 dark:text-white">{t('profile.rankBadge1')}</span>
-                <span className="text-[10px] text-green-500 font-semibold">{t('profile.rankBadge1Sub')}</span>
+            {/* Bildirim Toggle */}
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-lightPrimary p-3.5 dark:bg-navy-700/60">
+              <div className="flex items-center gap-3">
+                {notifEnabled ? (
+                  <MdNotificationsActive className="h-5 w-5 shrink-0 text-brand-500" />
+                ) : (
+                  <MdNotificationsOff className="h-5 w-5 shrink-0 text-gray-400" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-navy-700 dark:text-white">
+                    {t('pwa.notifTitle')}
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {t('pwa.notifDesc')}
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={handleToggleNotifications}
+                aria-label={t('pwa.notifTitle')}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  notifEnabled ? 'bg-brand-500' : 'bg-gray-300 dark:bg-navy-600'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                    notifEnabled ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
+              </button>
+            </div>
 
-              <div className="flex flex-col items-center rounded-xl bg-gray-50 p-3 text-center dark:bg-navy-700/50">
-                <span className="text-2xl">⚡</span>
-                <span className="mt-1 text-[11px] font-bold text-navy-700 dark:text-white">{t('profile.rankBadge2')}</span>
-                <span className="text-[10px] text-brand-500 font-semibold">{t('profile.rankBadge2Sub')}</span>
+            {/* Uygulamayı Yükle (A2HS) */}
+            {isInstalled ? (
+              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-green-50 p-3.5 text-sm font-semibold text-green-600 dark:bg-green-500/10 dark:text-green-400">
+                <MdCheckCircle className="h-5 w-5" />
+                {t('pwa.installedNote')}
               </div>
+            ) : canInstall ? (
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-brand-600 active:scale-[0.98]"
+              >
+                <MdInstallMobile className="h-5 w-5" />
+                {t('pwa.installBtn')}
+              </button>
+            ) : (
+              <p className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
+                {t('pwa.installHint')}
+              </p>
+            )}
+          </div>
 
-              <div className="flex flex-col items-center rounded-xl bg-gray-50 p-3 text-center dark:bg-navy-700/50">
-                <span className="text-2xl">🛡️</span>
-                <span className="mt-1 text-[11px] font-bold text-navy-700 dark:text-white">{t('profile.rankBadge3')}</span>
-                <span className="text-[10px] text-purple-500 font-semibold">{t('profile.rankBadge3Sub')}</span>
-              </div>
+          {/* Rozetler & Başarımlar (Gerçek Metriklere Bağlı) */}
+          <div className="rounded-[24px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none border border-gray-100 dark:border-white/5">
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="flex items-center gap-2 text-base font-bold text-navy-700 dark:text-white">
+                <MdStar className="h-5 w-5 text-yellow-500" />
+                {t('profile.rankTitle')}
+              </h4>
+              <span className="rounded-full bg-brand-500/10 px-2.5 py-1 text-[11px] font-bold text-brand-500">
+                {unlockedCount} / {achievements.length}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {achievements.map((ach) => (
+                <div
+                  key={ach.key}
+                  title={ach.desc}
+                  className={`flex flex-col items-center rounded-xl p-3 text-center transition-all ${
+                    ach.unlocked
+                      ? 'bg-gradient-to-b from-amber-50 to-yellow-100/60 ring-1 ring-amber-300/60 dark:from-amber-500/10 dark:to-yellow-500/5 dark:ring-amber-500/30'
+                      : 'bg-gray-50 opacity-70 dark:bg-navy-700/50'
+                  }`}
+                >
+                  <span className={`text-2xl ${ach.unlocked ? '' : 'grayscale'}`}>{ach.icon}</span>
+                  <span className="mt-1 text-[11px] font-bold text-navy-700 dark:text-white">
+                    {ach.title}
+                  </span>
+                  {ach.unlocked ? (
+                    <span className="mt-0.5 flex items-center gap-0.5 text-[10px] font-semibold text-green-500">
+                      <MdCheckCircle className="h-3 w-3" />
+                      {t('profile.achUnlocked')}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="mt-0.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500">
+                        {Math.min(ach.current, ach.target)} / {ach.target}
+                      </span>
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-navy-900">
+                        <div
+                          className="h-full rounded-full bg-brand-400 transition-all duration-500"
+                          style={{ width: `${Math.min(100, (ach.current / ach.target) * 100)}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { useTranslation } from "contexts/TranslationContext";
 import LandingNavbar from "./components/LandingNavbar";
 import HeroSection from "./components/HeroSection";
 import FeaturesSection from "./components/FeaturesSection";
+import InteractiveDemoSection from "./components/InteractiveDemoSection";
 import HowItWorksSection from "./components/HowItWorksSection";
 import ShowcaseSection from "./components/ShowcaseSection";
 import FaqSection from "./components/FaqSection";
@@ -31,6 +32,7 @@ const LandingPage = () => {
       <main>
         <HeroSection />
         <FeaturesSection />
+        <InteractiveDemoSection />
         <HowItWorksSection />
         <ShowcaseSection />
         <FaqSection />

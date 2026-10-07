@@ -9,11 +9,13 @@
 /coverage
 
 # production
-# /build
+/build
 
 
 # misc
 .DS_Store
+.qoder/
+/*.png
 .env
 .env.local
 .env.development.local

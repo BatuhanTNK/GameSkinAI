@@ -235,10 +235,11 @@ export function AuthProvider({ children }) {
 
     try {
       const activeLang = localStorage.getItem('gameskinai_lang') || 'tr';
+      const publicUrl = process.env.PUBLIC_URL || '';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/${activeLang}/admin/converter`,
+          redirectTo: `${window.location.origin}${publicUrl}/${activeLang}/admin/converter`,
         },
       });
       if (error) throw error;
@@ -262,10 +263,11 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      const activeLang = localStorage.getItem('gameskinai_lang') || 'tr';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: window.location.origin + '/admin/converter',
+          redirectTo: `${window.location.origin}/${activeLang}/admin/converter`,
         },
       });
       if (error) throw error;

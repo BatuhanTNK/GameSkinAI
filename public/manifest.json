@@ -6,10 +6,20 @@
     {
       "src": "favicon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "start_url": ".",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "lang": "tr",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#4318FF",

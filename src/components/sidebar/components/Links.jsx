@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import DashIcon from "components/icons/DashIcon";
 import { useAuth } from "contexts/AuthContext";
 import { useTranslation } from "contexts/TranslationContext";
+import { useIsAdmin } from "hooks/useIsAdmin";
 import { MdLogout } from "react-icons/md";
 
 export function SidebarLinks(props) {
@@ -11,6 +12,7 @@ export function SidebarLinks(props) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { t, lang } = useTranslation();
+  const { isAdmin } = useIsAdmin();
 
   const { routes } = props;
 
@@ -30,6 +32,7 @@ export function SidebarLinks(props) {
   const createLinks = (routes) => {
     return routes
       .filter((route) => !route.hidden) // Hidden route'ları filtrele
+      .filter((route) => !route.adminOnly || isAdmin) // Admin route'ları sadece adminlere göster
       .filter((route) => route.layout === "/admin" || route.layout === "")
       .map((route, index) => {
         const translatedName = t(`nav.${route.path}`) !== `nav.${route.path}` 
@@ -43,36 +46,26 @@ export function SidebarLinks(props) {
           : activeRoute(route.path);
 
         return (
-          <Link key={index} to={targetPath}>
-            <div className="relative mb-3 flex hover:cursor-pointer">
-              <li
-                className="my-[3px] flex cursor-pointer items-center px-8"
-                key={index}
-              >
-                <span
-                  className={`${
-                    isActive === true
-                      ? "font-bold text-brand-500 dark:text-white"
-                      : "font-medium text-gray-600"
-                  }`}
-                >
-                  {route.icon ? route.icon : <DashIcon />}{" "}
-                </span>
-                <p
-                  className={`leading-1 ml-4 flex ${
-                    isActive === true
-                      ? "font-bold text-navy-700 dark:text-white"
-                      : "font-medium text-gray-600"
-                  }`}
-                >
-                  {translatedName}
-                </p>
-              </li>
-              {isActive ? (
-                <div className="absolute right-0 top-px h-9 w-1 rounded-lg bg-brand-500 dark:bg-brand-400" />
-              ) : null}
-            </div>
-          </Link>
+          <li key={index} className="relative mb-1">
+            <Link
+              to={targetPath}
+              className={`flex items-center px-8 py-2.5 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? "font-bold text-navy-700 dark:text-white bg-brand-50/50 dark:bg-navy-700/50"
+                  : "font-medium text-gray-600 hover:text-navy-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-navy-700/30"
+              }`}
+            >
+              <span className={`text-xl ${isActive ? "text-brand-500 dark:text-brand-400" : "text-gray-400"}`}>
+                {route.icon ? route.icon : <DashIcon />}
+              </span>
+              <span className="ml-4 text-sm leading-none">
+                {translatedName}
+              </span>
+              {isActive && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-l-lg bg-brand-500 dark:bg-brand-400" />
+              )}
+            </Link>
+          </li>
         );
       });
   };
@@ -81,19 +74,16 @@ export function SidebarLinks(props) {
     <>
       {createLinks(routes)}
       {/* Çıkış Yap butonu */}
-      <div
-        onClick={handleSignOut}
-        className="relative mb-3 flex cursor-pointer hover:cursor-pointer"
-      >
-        <li className="my-[3px] flex cursor-pointer items-center px-8">
-          <span className="font-medium text-gray-600">
-            <MdLogout className="h-6 w-6" />
-          </span>
-          <p className="leading-1 ml-4 flex font-medium text-gray-600 hover:text-red-500 transition-colors duration-200">
-            {t('nav.logout')}
-          </p>
-        </li>
-      </div>
+      <li className="relative mt-2 pt-2 border-t border-gray-100 dark:border-navy-700">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="w-full flex items-center px-8 py-2.5 font-medium text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition-colors text-left"
+        >
+          <MdLogout className="h-5 w-5 text-gray-400 group-hover:text-red-500" />
+          <span className="ml-4 text-sm leading-none">{t('nav.logout')}</span>
+        </button>
+      </li>
     </>
   );
 }

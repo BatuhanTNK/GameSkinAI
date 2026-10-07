@@ -50,18 +50,21 @@ const HowItWorksSection = () => {
 
         {/* Steps Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+          {/* Connecting Line (Desktop) */}
+          <div className="hidden md:block absolute top-1/2 left-1/6 right-1/6 h-0.5 border-t-2 border-dashed border-gray-200 dark:border-navy-700 -translate-y-6 pointer-events-none z-0" />
+
           {steps.map((item, idx) => (
             <div
               key={idx}
-              className="relative rounded-3xl bg-white dark:bg-navy-800 p-8 border border-gray-100 dark:border-navy-700 shadow-xl shadow-shadow-500/10 hover:shadow-2xl transition-all duration-300 flex flex-col items-center text-center"
+              className="relative z-10 rounded-3xl bg-white dark:bg-navy-800 p-8 border border-gray-100 dark:border-navy-700 shadow-xl shadow-shadow-500/10 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group"
             >
               {/* Step Number Badge */}
-              <div className="absolute top-6 right-6 text-4xl font-black text-gray-200 dark:text-navy-700 select-none">
+              <div className="absolute top-6 right-6 text-4xl font-black text-gray-200 dark:text-navy-700 select-none group-hover:text-brand-500/20 transition-colors">
                 {item.step}
               </div>
 
               {/* Icon Container */}
-              <div className="h-16 w-16 rounded-2xl bg-gray-50 dark:bg-navy-700 border border-gray-200/60 dark:border-navy-600 flex items-center justify-center mb-6 shadow-sm">
+              <div className="h-16 w-16 rounded-2xl bg-gray-50 dark:bg-navy-700 border border-gray-200/60 dark:border-navy-600 flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform">
                 {item.icon}
               </div>
 

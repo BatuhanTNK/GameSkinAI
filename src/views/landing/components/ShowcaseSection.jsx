@@ -3,10 +3,11 @@
  * Tamamı t(...) i18n çevirileri ile dinamikleştirilmiş bileşen.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MdStorefront, MdFavorite, MdContentCopy, MdArrowForward } from "react-icons/md";
+import { MdStorefront, MdFavorite, MdContentCopy, MdCheck, MdArrowForward } from "react-icons/md";
 import { useTranslation } from "contexts/TranslationContext";
+import { useToast } from "contexts/ToastContext";
 
 const SHOWCASE_ITEMS = [
   {
@@ -49,7 +50,16 @@ const SHOWCASE_ITEMS = [
 
 const ShowcaseSection = () => {
   const { t, lang } = useTranslation();
+  const { showToast } = useToast();
   const navigate = useNavigate();
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopy = (item) => {
+    navigator.clipboard.writeText(item.prompt);
+    setCopiedId(item.id);
+    showToast(t('share.copiedSuccess'), 'success');
+    setTimeout(() => setCopiedId(null), 2500);
+  };
 
   return (
     <section id="showcase" className="py-20 bg-white dark:bg-navy-900 relative">
@@ -110,14 +120,24 @@ const ShowcaseSection = () => {
               </div>
 
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(item.prompt);
-                  alert(t('share.copiedSuccess'));
-                }}
-                className="w-full py-2.5 rounded-xl text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-navy-700/60 hover:bg-brand-100 dark:hover:bg-navy-700 border border-brand-200/60 dark:border-brand-500/30 transition-colors flex items-center justify-center gap-1.5"
+                onClick={() => handleCopy(item)}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  copiedId === item.id
+                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                    : "text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-navy-700/60 hover:bg-brand-100 dark:hover:bg-navy-700 border border-brand-200/60 dark:border-brand-500/30"
+                }`}
               >
-                <MdContentCopy className="h-4 w-4" />
-                <span>{t('landing.showcaseCopyPrompt')}</span>
+                {copiedId === item.id ? (
+                  <>
+                    <MdCheck className="h-4 w-4 text-white" />
+                    <span>{t('landing.demoCopied')}</span>
+                  </>
+                ) : (
+                  <>
+                    <MdContentCopy className="h-4 w-4" />
+                    <span>{t('landing.showcaseCopyPrompt')}</span>
+                  </>
+                )}
               </button>
             </div>
           ))}

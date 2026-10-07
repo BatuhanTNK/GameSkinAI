@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <title>GameSkinAI</title>
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // MIT License
+      // https://github.com/rafgraph/spa-github-pages
+      // Bu script, GitHub Pages üzerinde alt rotalara doğrudan girildiğinde veya F5 yapıldığında
+      // 404 hatasını yakalar, yolu query string'e çevirip index.html'e yönlendirir.
+      var pathSegmentsToKeep = window.location.hostname.endsWith('github.io') ? 1 : 0;
+
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
+    </script>
+  </head>
+  <body>
+    <!-- 404.html dosyasının tarayıcılar tarafından standart 404 sayfası yerine özel sayfa olarak tanınması için 512 bayttan büyük tutulur. -->
+    <p>Yönlendiriliyorsunuz, lütfen bekleyin...</p>
+  </body>
+</html>

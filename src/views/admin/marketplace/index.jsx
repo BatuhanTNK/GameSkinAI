@@ -5,9 +5,10 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useConversions } from 'hooks/useConversions';
 import { THEMES } from 'lib/themes';
-import { MdAutoAwesome, MdFavorite, MdSearch, MdVisibility } from 'react-icons/md';
+import { MdAutoAwesome, MdFavorite, MdSearch, MdVisibility, MdNewReleases, MdTrendingUp, MdPerson } from 'react-icons/md';
 
 import ShareButtons from 'components/converter/ShareButtons';
 import MinecraftSkinPreview from 'components/converter/MinecraftSkinPreview';
@@ -18,7 +19,7 @@ import { useToast } from 'contexts/ToastContext';
 
 export default function Marketplace() {
   const { fetchPublicConversions, toggleLike } = useConversions();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { showToast } = useToast();
 
   const [publicConversions, setPublicConversions] = useState([]);
@@ -27,7 +28,7 @@ export default function Marketplace() {
   // Arama, Filtreleme ve Sıralama
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTheme, setSelectedTheme] = useState('all');
-  const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'likes'
+  const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'likes' | 'trending'
 
   // Modal
   const [selectedConversion, setSelectedConversion] = useState(null);
@@ -80,17 +81,22 @@ export default function Marketplace() {
   };
 
   // Filtrelenmiş ve Sıralanmış Liste
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const filteredList = publicConversions
     .filter((conv) => {
       const matchSearch =
         conv.theme_label?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         conv.result_description?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchTheme = selectedTheme === 'all' || conv.theme_slug === selectedTheme;
-      return matchSearch && matchTheme;
+      // Trend sekmesi: sadece son 7 günün paylaşımları
+      const matchTrending =
+        sortBy !== 'trending' || new Date(conv.created_at).getTime() >= weekAgo;
+      return matchSearch && matchTheme && matchTrending;
     })
     .sort((a, b) => {
-      if (sortBy === 'likes') {
-        return (b.likes_count || 0) - (a.likes_count || 0);
+      if (sortBy === 'likes' || sortBy === 'trending') {
+        const likeDiff = (b.likes_count || 0) - (a.likes_count || 0);
+        if (likeDiff !== 0) return likeDiff;
       }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -119,21 +125,21 @@ export default function Marketplace() {
       </div>
 
       {/* Arama, Filtreleme ve Sıralama Çubuğu */}
-      <div className="flex flex-col gap-4 rounded-[20px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none md:flex-row md:items-center md:justify-between">
-        {/* Arama Input */}
-        <div className="relative flex-1">
-          <MdSearch className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('marketplace.searchPlaceholder')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 py-3 text-sm text-navy-700 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-900 dark:text-white"
-          />
-        </div>
+      <div className="flex flex-col gap-4 rounded-[20px] bg-white p-5 shadow-3xl shadow-shadow-500 dark:bg-navy-800 dark:shadow-none">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* Arama Input */}
+          <div className="relative flex-1">
+            <MdSearch className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder={t('marketplace.searchPlaceholder')}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 py-3 text-sm text-navy-700 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-navy-900 dark:text-white"
+            />
+          </div>
 
-        {/* Tema Filtresi & Sıralama */}
-        <div className="flex flex-wrap gap-3">
+          {/* Tema Filtresi */}
           <select
             value={selectedTheme}
             onChange={(e) => setSelectedTheme(e.target.value)}
@@ -146,15 +152,29 @@ export default function Marketplace() {
               </option>
             ))}
           </select>
+        </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-navy-700 outline-none dark:border-white/10 dark:bg-navy-900 dark:text-white"
-          >
-            <option value="newest">{t('history.sortNewest')}</option>
-            <option value="likes">En Popüler (Beğeniye Göre)</option>
-          </select>
+        {/* Sıralama Sekmeleri */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: 'newest', label: t('marketplace.tabNewest'), icon: MdNewReleases },
+            { key: 'likes', label: t('marketplace.tabMostLiked'), icon: MdFavorite },
+            { key: 'trending', label: t('marketplace.tabTrending'), icon: MdTrendingUp },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSortBy(tab.key)}
+              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                sortBy === tab.key
+                  ? 'bg-brand-500 text-white shadow-md shadow-brand-500/30'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-navy-700 dark:text-gray-300 dark:hover:bg-navy-600'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -234,8 +254,19 @@ export default function Marketplace() {
                   {conv.theme_label} Character
                 </h4>
                 <p className="mt-1 text-xs text-gray-500 line-clamp-2 dark:text-gray-400">
-                  {modalParsedData.descriptionText || 'AI Karakter açıklaması'}
+                  {parseConversionDescription(conv.result_description || '', conv.theme_slug)
+                    .descriptionText || 'AI Karakter açıklaması'}
                 </p>
+                {conv.user_id && (
+                  <Link
+                    to={`/${lang}/user/${conv.user_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:underline"
+                  >
+                    <MdPerson className="h-3.5 w-3.5" />
+                    {conv.user_display_name || t('common.user')}
+                  </Link>
+                )}
               </div>
             </div>
           ))}
@@ -255,6 +286,15 @@ export default function Marketplace() {
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   Topluluk Karakteri
                 </span>
+                {selectedConversion.user_id && (
+                  <Link
+                    to={`/${lang}/user/${selectedConversion.user_id}`}
+                    className="mt-1 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:underline"
+                  >
+                    <MdPerson className="h-3.5 w-3.5" />
+                    {selectedConversion.user_display_name || t('common.user')}
+                  </Link>
+                )}
               </div>
               <button
                 type="button"
@@ -307,6 +347,7 @@ export default function Marketplace() {
                 <ShareButtons
                   title={selectedConversion.theme_label}
                   text={modalParsedData.descriptionText}
+                  url={`${window.location.origin}/${lang}/skin/${selectedConversion.id}`}
                 />
                 <button
                   type="button"

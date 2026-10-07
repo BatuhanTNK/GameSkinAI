@@ -4,14 +4,16 @@
  * Yükleme, başarı ve hata durumlarını destekler.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { MdDownload, MdRefresh, MdAutoAwesome } from 'react-icons/md';
+import { MdDownload, MdRefresh, MdAutoAwesome, MdShuffle, MdCheckCircle, MdContentCopy } from 'react-icons/md';
 import Card from 'components/card';
 import MinecraftSkinPreview from './MinecraftSkinPreview';
 import { parseConversionDescription } from 'lib/skinDataParser';
+import { generateImage } from 'lib/gemini';
 import ComparisonSlider from './ComparisonSlider';
 import ShareButtons from './ShareButtons';
+import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
 
 
@@ -48,9 +50,54 @@ export default function ConversionResult({
   isConverting,
   onRetry,
   errorMessage,
+  imagePrompt,
+  onApplyVariation,
 }) {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [viewMode, setViewMode] = useState('slider');
+
+  // Varyasyon üretimi state'leri (ozellik_onerileri.md #3)
+  const [variations, setVariations] = useState([]);
+  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
+
+  // Yeni bir sonuç geldiğinde eski varyasyonları temizle
+  useEffect(() => {
+    setVariations([]);
+    setIsGeneratingVariations(false);
+  }, [result?.id]);
+
+  /**
+   * Aynı prompt ile farklı seed'lerden 3 varyasyon üretir (kredi harcamaz).
+   */
+  const handleGenerateVariations = async () => {
+    if (!imagePrompt || isGeneratingVariations) return;
+    setIsGeneratingVariations(true);
+    try {
+      const urls = await Promise.all([0, 1, 2].map(() => generateImage(imagePrompt)));
+      setVariations(urls.map((url) => ({ url, loaded: false })));
+    } finally {
+      setIsGeneratingVariations(false);
+    }
+  };
+
+  /**
+   * Seçilen varyasyonu ana sonuç görseli olarak uygular.
+   */
+  const handleSelectVariation = (url) => {
+    if (onApplyVariation) onApplyVariation(url);
+  };
+
+  /**
+   * Üretim prompt'unu panoya kopyalar (ozellik_onerileri.md #10).
+   */
+  const handleCopyPrompt = () => {
+    const promptText = result?.prompt || imagePrompt;
+    if (!promptText) return;
+    navigator.clipboard.writeText(promptText).then(() => {
+      showToast(t('result.promptCopied'), 'success');
+    });
+  };
 
   // Dönüşüm devam ediyorsa loading göster
   if (isConverting) {
@@ -325,6 +372,54 @@ export default function ConversionResult({
           </p>
         </div>
 
+        {/* Varyasyon Galerisi (aynı prompt, farklı seed'ler) */}
+        {variations.length > 0 && (
+          <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-500/30 dark:bg-brand-500/5">
+            <h5 className="mb-3 flex items-center gap-2 text-sm font-bold text-navy-700 dark:text-white">
+              <MdShuffle className="h-4 w-4 text-brand-500" />
+              {t('result.variationsTitle')}
+            </h5>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {variations.map((v, idx) => (
+                <div
+                  key={v.url}
+                  className="group flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-navy-800"
+                >
+                  <div className="relative aspect-square w-full bg-gray-100 dark:bg-navy-900">
+                    {!v.loaded && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500 dark:border-navy-700 dark:border-t-brand-400" />
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {t('result.variationsLoading')}
+                        </span>
+                      </div>
+                    )}
+                    <img
+                      src={v.url}
+                      alt={`${t('result.variationsTitle')} ${idx + 1}`}
+                      className={`h-full w-full object-cover transition-opacity duration-300 ${v.loaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() =>
+                        setVariations((prev) =>
+                          prev.map((item) => (item.url === v.url ? { ...item, loaded: true } : item))
+                        )
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!v.loaded}
+                    onClick={() => handleSelectVariation(v.url)}
+                    className="flex items-center justify-center gap-1.5 bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <MdCheckCircle className="h-4 w-4" />
+                    {t('result.btnUseVariation')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Paylaşım Butonları */}
         <div className="mb-4 flex items-center justify-between border-t border-b border-gray-100 py-3 dark:border-white/10">
           <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Sosyal Medyada Paylaş:</span>
@@ -354,6 +449,31 @@ export default function ConversionResult({
             {t('result.btnDownloadText')}
           </button>
 
+          {(result.prompt || imagePrompt) && (
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              title={t('result.btnCopyPromptHint')}
+              className="flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-cyan-600 hover:shadow-lg"
+            >
+              <MdContentCopy className="h-5 w-5" />
+              {t('result.btnCopyPrompt')}
+            </button>
+          )}
+
+          {imagePrompt && result.result_image_url && (
+            <button
+              type="button"
+              onClick={handleGenerateVariations}
+              disabled={isGeneratingVariations}
+              title={t('result.btnVariationsHint')}
+              className="flex items-center gap-2 rounded-xl bg-purple-500 px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-purple-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <MdShuffle className={`h-5 w-5 ${isGeneratingVariations ? 'animate-spin' : ''}`} />
+              {isGeneratingVariations ? t('result.btnVariationsLoading') : t('result.btnVariations')}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onRetry}
@@ -378,14 +498,19 @@ ConversionResult.propTypes = {
     theme_slug: PropTypes.string,
     original_image_url: PropTypes.string,
     result_image_url: PropTypes.string,
+    prompt: PropTypes.string,
   }),
   isConverting: PropTypes.bool,
   onRetry: PropTypes.func.isRequired,
   errorMessage: PropTypes.string,
+  imagePrompt: PropTypes.string,
+  onApplyVariation: PropTypes.func,
 };
 
 ConversionResult.defaultProps = {
   result: null,
   isConverting: false,
   errorMessage: null,
+  imagePrompt: null,
+  onApplyVariation: null,
 };

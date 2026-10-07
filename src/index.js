@@ -14,9 +14,10 @@ import { TranslationProvider } from "./contexts/TranslationContext";
 import * as serviceWorkerRegistration from "./serviceWorkerRegistration";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
+const basename = process.env.PUBLIC_URL || "";
 
 root.render(
-  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  <BrowserRouter basename={basename} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <AuthProvider>
       <TranslationProvider>
         <ToastProvider>
@@ -27,6 +28,6 @@ root.render(
   </BrowserRouter>
 );
 
-// Service worker'ı devre dışı bırakıyoruz ki yeni güncellemeler ve güvenlik yamaları
-// önbellek bayatlaması nedeniyle kullanıcılara geç ulaşmasın.
-serviceWorkerRegistration.unregister();
+// PWA: service worker'ı kaydet (offline cache + bildirim tıklama yönetimi).
+// Yeni sürümler SKIP_WAITING ile anında devraldığından cache bayatlaması yaşanmaz.
+serviceWorkerRegistration.register();

@@ -6,7 +6,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { MdDownload, MdVisibility, MdVisibilityOff } from 'react-icons/md';
+import { MdDownload, MdVisibility, MdVisibilityOff, MdVideogameAsset } from 'react-icons/md';
+import { useTranslation } from 'contexts/TranslationContext';
 
 // ──────────── YARDIMCI FONKSİYONLAR ────────────
 
@@ -76,14 +77,16 @@ const sanitizeColor = (colorStr, fallback) => {
  * @param {string} [props.skinImageUrl] - AI tarafından üretilen skin görseli URL'i
  */
 export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
+  const { t } = useTranslation();
   const previewCanvasRef = useRef(null);
   const [skinDataUrl, setSkinDataUrl] = useState('');
   const [showFlatTexture, setShowFlatTexture] = useState(false);
 
-  // ──────────── PROGRAMMATIK SKİN (Fallback) ────────────
+  // ──────────── PROGRAMMATIK 64x64 SKİN ────────────
   useEffect(() => {
-    // AI görseli varsa programmatik skin oluşturma (sadece fallback durumda)
-    if (skinImageUrl || !skinData) return;
+    // AI görseli olsa bile 64x64 oyun dosyası her zaman üretilir
+    // (AI görseli sadece render'dır; oyunda kullanılabilir dosya bu canvas'tır)
+    if (!skinData) return;
 
     const skin     = sanitizeColor(skinData.skinColor, '#C68642');
     const skinDark = adjustColor(skin, 0.85);
@@ -235,15 +238,25 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
     draw(28, 52, 4, 12, BX, 105); draw(12, 20, 4, 12, BX + 20, 105);
   }, [skinData, skinImageUrl]);
 
-  const handleDownload = () => {
-    const url = skinImageUrl || skinDataUrl;
+  /** Verilen URL'i png dosyası olarak indirir. */
+  const triggerDownload = (url, filename) => {
     if (!url) return;
     const link = document.createElement('a');
     link.href = url;
-    link.download = `minecraft_skin_${Date.now()}.png`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  /** Oyunda kullanılabilir 64x64 skin dosyasını indirir. */
+  const handleDownloadSkinFile = () => {
+    triggerDownload(skinDataUrl, `minecraft_skin_64x64_${Date.now()}.png`);
+  };
+
+  /** AI tarafından üretilen render görselini indirir. */
+  const handleDownloadAiImage = () => {
+    triggerDownload(skinImageUrl, `minecraft_skin_ai_${Date.now()}.png`);
   };
 
   // AI skin görseli varsa onu göster, yoksa programmatik canvas
@@ -252,11 +265,11 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-800">
       <span className="text-xs font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
-        {hasAiSkin ? 'Minecraft Oyuncu Skini (AI Üretim)' : 'Minecraft Oyuncu Skini (Orijinal Format)'}
+        {hasAiSkin ? t('mcskin.titleAi') : t('mcskin.titleOriginal')}
       </span>
 
       <div className="relative flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl dark:bg-navy-900 w-full min-h-[280px]">
-        {hasAiSkin ? (
+        {hasAiSkin && !showFlatTexture ? (
           /* ─── AI SKIN GÖRSELİ ─── */
           <div className="flex flex-col items-center gap-2">
             <img
@@ -266,13 +279,13 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
               style={{ imageRendering: 'auto' }}
             />
             <span className="text-[10px] text-gray-400 mt-1">
-              Gemini AI ile üretilmiştir
+              {t('mcskin.aiCredit')}
             </span>
           </div>
-                ) : (
+        ) : (
           <>
             {/* ─── PROGRAMMATIK 2D ÖNİZLEME ─── */}
-            <div className={showFlatTexture ? 'hidden' : 'flex flex-col items-center'}>
+            <div className={showFlatTexture || hasAiSkin ? 'hidden' : 'flex flex-col items-center'}>
               <canvas
                 ref={previewCanvasRef}
                 width={220}
@@ -280,12 +293,12 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
                 className="max-w-full drop-shadow-md"
               />
               <div className="flex justify-between text-xs text-gray-400 mt-2 px-6 w-full">
-                <span>Ön Görünüm</span>
-                <span>Arka Görünüm</span>
+                <span>{t('mcskin.frontView')}</span>
+                <span>{t('mcskin.backView')}</span>
               </div>
             </div>
 
-            {/* ─── FLAT TEXTURE HARİTASI ─── */}
+            {/* ─── FLAT TEXTURE HARİTASI (64x64 oyun dosyası) ─── */}
             <div className={showFlatTexture ? 'flex flex-col items-center gap-2' : 'hidden'}>
               {skinDataUrl ? (
                 <img
@@ -298,36 +311,48 @@ export default function MinecraftSkinPreview({ skinData, skinImageUrl }) {
                 <div className="h-40 w-40 animate-pulse rounded-lg bg-gray-200 dark:bg-navy-800" />
               )}
               <span className="text-[10px] text-gray-400">
-                64x64 Pixel Düz Kaplama Haritası
+                {t('mcskin.textureCaption')}
               </span>
             </div>
           </>
         )}
       </div>
 
-      <div className="flex w-full gap-2 justify-center">
+      <div className="flex w-full flex-wrap gap-2 justify-center">
+        {/* Oyunda kullanılabilir 64x64 skin dosyası */}
         <button
           type="button"
-          onClick={handleDownload}
-          className="flex items-center gap-2 rounded-xl bg-green-500 px-4 py-2 text-xs font-bold text-white transition-all duration-200 hover:bg-green-600 shadow-md hover:shadow-lg"
+          onClick={handleDownloadSkinFile}
+          disabled={!skinDataUrl}
+          title={t('mcskin.btnDownloadSkinHint')}
+          className="flex items-center gap-2 rounded-xl bg-green-500 px-4 py-2 text-xs font-bold text-white transition-all duration-200 hover:bg-green-600 shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <MdDownload className="h-4 w-4" />
-          Skinini İndir (.png)
+          <MdVideogameAsset className="h-4 w-4" />
+          {t('mcskin.btnDownloadSkin')}
         </button>
 
-        {!hasAiSkin && (
+        {hasAiSkin && (
           <button
             type="button"
-            onClick={() => setShowFlatTexture(!showFlatTexture)}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-xs font-medium text-navy-700 transition-all duration-200 hover:bg-gray-100 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+            onClick={handleDownloadAiImage}
+            className="flex items-center gap-2 rounded-xl border border-green-500 px-4 py-2 text-xs font-bold text-green-600 transition-all duration-200 hover:bg-green-50 dark:text-green-400 dark:hover:bg-white/5"
           >
-            {showFlatTexture ? (
-              <><MdVisibility className="h-4 w-4" /> Karakteri Göster</>
-            ) : (
-              <><MdVisibilityOff className="h-4 w-4" /> Dokuyu Göster</>
-            )}
+            <MdDownload className="h-4 w-4" />
+            {t('mcskin.btnDownloadAi')}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => setShowFlatTexture(!showFlatTexture)}
+          className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-xs font-medium text-navy-700 transition-all duration-200 hover:bg-gray-100 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+        >
+          {showFlatTexture ? (
+            <><MdVisibility className="h-4 w-4" /> {hasAiSkin ? t('mcskin.btnShowAi') : t('mcskin.btnShowCharacter')}</>
+          ) : (
+            <><MdVisibilityOff className="h-4 w-4" /> {t('mcskin.btnShowTexture')}</>
+          )}
+        </button>
       </div>
     </div>
   );

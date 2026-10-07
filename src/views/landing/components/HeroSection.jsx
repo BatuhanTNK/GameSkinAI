@@ -5,9 +5,10 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MdAutoAwesome, MdArrowForward, MdCheckCircle } from "react-icons/md";
+import { MdAutoAwesome, MdArrowForward, MdCheckCircle, MdInstallMobile } from "react-icons/md";
 import { useAuth } from "contexts/AuthContext";
 import { useTranslation } from "contexts/TranslationContext";
+import { usePwaInstall } from "hooks/usePwaInstall";
 
 // Avatar Portre Görselleri (Orijinal)
 import avatar4 from "assets/img/avatars/avatar4.png";
@@ -23,6 +24,7 @@ const HeroSection = () => {
   const { user } = useAuth();
   const { t, lang } = useTranslation();
   const navigate = useNavigate();
+  const { canInstall, promptInstall } = usePwaInstall();
 
   const heroDemos = [
     {
@@ -141,6 +143,16 @@ const HeroSection = () => {
                   </a>
                 </>
               )}
+              {/* PWA: Ana ekrana ekle (yalnızca tarayıcı destekliyorsa görünür) */}
+              {canInstall && (
+                <button
+                  onClick={promptInstall}
+                  className="w-full sm:w-auto px-8 py-4 rounded-2xl text-base font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-navy-800 hover:bg-brand-100 dark:hover:bg-navy-700 border border-brand-200 dark:border-brand-500/30 shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  <MdInstallMobile className="h-5 w-5" />
+                  <span>{t('pwa.installBtn')}</span>
+                </button>
+              )}
             </div>
 
           </div>
@@ -197,12 +209,12 @@ const HeroSection = () => {
                         <div className="relative w-full aspect-square rounded-2xl overflow-hidden border-2 border-gray-300 dark:border-navy-600 shadow-md group">
                           <img
                             src={activeDemo.beforeImg}
-                            alt="Orijinal Yüklenen Fotoğraf"
+                            alt={t('landing.heroOriginalPhoto')}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end justify-center p-1.5">
                             <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-black/70 text-white backdrop-blur-md">
-                              Orijinal Fotoğraf
+                              {t('landing.heroOriginalPhoto')}
                             </span>
                           </div>
                         </div>
@@ -214,7 +226,7 @@ const HeroSection = () => {
                           <MdAutoAwesome className="h-5 w-5" />
                         </div>
                         <span className="text-[10px] font-black text-brand-500 dark:text-brand-400 mt-1 uppercase tracking-tighter">
-                          AI DÖNÜŞÜM
+                          {t('landing.heroAiTransform')}
                         </span>
                       </div>
 
@@ -228,7 +240,7 @@ const HeroSection = () => {
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end justify-center p-1.5">
                             <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-gradient-to-r from-brand-500 to-purple-600 text-white shadow backdrop-blur-md">
-                              8K AI Skin
+                              {t('landing.heroSkinBadge')}
                             </span>
                           </div>
                         </div>
@@ -254,7 +266,7 @@ const HeroSection = () => {
                     
                     <div className="space-y-2">
                       <h4 className="text-sm font-bold text-white tracking-wide flex items-center justify-between">
-                        <span>{activeDemo.title} Prompt Çıktısı</span>
+                        <span>{activeDemo.title} {t('landing.heroPromptOutputText')}</span>
                       </h4>
                       <p className="text-xs font-mono text-white bg-black/60 p-3 rounded-xl border border-white/20 leading-relaxed backdrop-blur-sm shadow-inner">
                         {activeDemo.promptText}

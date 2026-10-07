@@ -5,14 +5,17 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { MdContentCopy } from 'react-icons/md';
 import ComparisonSlider from './ComparisonSlider';
 import MinecraftSkinPreview from './MinecraftSkinPreview';
 import ShareButtons from './ShareButtons';
 import { parseConversionDescription } from 'lib/skinDataParser';
+import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
 
 export default function HistoryDetailModal({ conversion, onClose }) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const { showToast } = useToast();
   const [viewMode, setViewMode] = useState('slider');
 
   if (!conversion) return null;
@@ -21,6 +24,11 @@ export default function HistoryDetailModal({ conversion, onClose }) {
     conversion.result_description || '',
     conversion.theme_slug
   );
+
+  // Public kayıtlar için paylaşılabilir link (giriş gerektirmez)
+  const publicShareUrl = conversion.is_public
+    ? `${window.location.origin}/${lang}/skin/${conversion.id}`
+    : undefined;
 
   const handleDownloadImage = async () => {
     try {
@@ -199,10 +207,36 @@ export default function HistoryDetailModal({ conversion, onClose }) {
             </p>
           </div>
 
+          {/* Üretim Prompt'u (Prompt Kütüphanesi #10) */}
+          {conversion.prompt && (
+            <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 dark:border-cyan-500/30 dark:bg-cyan-500/5">
+              <div className="mb-2 flex items-center justify-between">
+                <h5 className="text-sm font-bold text-navy-700 dark:text-white">
+                  {t('result.promptTitle')}
+                </h5>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(conversion.prompt).then(() => {
+                      showToast(t('result.promptCopied'), 'success');
+                    });
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-cyan-600 active:scale-95"
+                >
+                  <MdContentCopy className="h-3.5 w-3.5" />
+                  {t('result.btnCopyPrompt')}
+                </button>
+              </div>
+              <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                {conversion.prompt}
+              </p>
+            </div>
+          )}
+
           {/* ShareButtons */}
           <div className="mt-4 flex items-center justify-between border-b border-t border-gray-100 py-3 dark:border-white/10">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Paylaş:</span>
-            <ShareButtons title={conversion.theme_label} text={descriptionText} />
+            <ShareButtons title={conversion.theme_label} text={descriptionText} url={publicShareUrl} />
           </div>
         </div>
 

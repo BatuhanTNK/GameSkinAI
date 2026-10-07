@@ -19,15 +19,15 @@ import {
 import { RiMoonFill, RiSunFill } from "react-icons/ri";
 import { useAuth } from "contexts/AuthContext";
 import { useTranslation } from "contexts/TranslationContext";
+import { useDarkMode } from "hooks/useDarkMode";
+import LanguageSwitcher from "components/common/LanguageSwitcher";
 import Dropdown from "components/dropdown";
 
 const LandingNavbar = () => {
   const { user, signOut } = useAuth();
-  const { t, lang, changeLanguage } = useTranslation();
+  const { t, lang } = useTranslation();
   const navigate = useNavigate();
-  const [darkmode, setDarkmode] = useState(
-    document.body.classList.contains("dark")
-  );
+  const [darkmode, toggleDarkMode] = useDarkMode();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -38,16 +38,6 @@ const LandingNavbar = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  const toggleDarkMode = () => {
-    if (darkmode) {
-      document.body.classList.remove("dark");
-      setDarkmode(false);
-    } else {
-      document.body.classList.add("dark");
-      setDarkmode(true);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -115,31 +105,7 @@ const LandingNavbar = () => {
           <div className="hidden sm:flex items-center gap-3">
             
             {/* Dil Seçici (TR / EN Pill Switcher) */}
-            <div className="flex items-center gap-1 rounded-xl bg-gray-100 dark:bg-navy-800 p-1 border border-gray-200/60 dark:border-navy-700">
-              <MdLanguage className="ml-1 h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <button
-                type="button"
-                onClick={() => changeLanguage('tr')}
-                className={`rounded-lg px-2.5 py-1 text-xs font-extrabold transition-all duration-200 ${
-                  lang === 'tr'
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-navy-700 dark:text-gray-400 dark:hover:text-white'
-                }`}
-              >
-                TR
-              </button>
-              <button
-                type="button"
-                onClick={() => changeLanguage('en')}
-                className={`rounded-lg px-2.5 py-1 text-xs font-extrabold transition-all duration-200 ${
-                  lang === 'en'
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-navy-700 dark:text-gray-400 dark:hover:text-white'
-                }`}
-              >
-                EN
-              </button>
-            </div>
+            <LanguageSwitcher />
 
             {/* Dark Mode Toggle */}
             <button
@@ -307,27 +273,7 @@ const LandingNavbar = () => {
           </div>
           <div className="h-px bg-gray-200 dark:bg-navy-800 my-2" />
           <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-navy-800">
-              <MdLanguage className="ml-1 h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <button
-                type="button"
-                onClick={() => changeLanguage('tr')}
-                className={`rounded-lg px-3 py-1 text-xs font-extrabold ${
-                  lang === 'tr' ? 'bg-brand-500 text-white' : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                TR
-              </button>
-              <button
-                type="button"
-                onClick={() => changeLanguage('en')}
-                className={`rounded-lg px-3 py-1 text-xs font-extrabold ${
-                  lang === 'en' ? 'bg-brand-500 text-white' : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                EN
-              </button>
-            </div>
+            <LanguageSwitcher />
             {user ? (
               <button
                 onClick={() => {

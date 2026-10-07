@@ -7,7 +7,12 @@ export default defineConfig(({ mode }) => {
   // .env dosyasındaki REACT_APP_ ve VITE_ değişkenlerini yükle
   const env = loadEnv(mode, process.cwd(), '');
 
+  const isProd = mode === 'production';
+  const basePath = isProd ? '/GameSkinAI/' : '/';
+  const publicUrl = isProd ? '/GameSkinAI' : '';
+
   return {
+    base: basePath,
     plugins: [react()],
     esbuild: {
       loader: 'jsx',
@@ -36,7 +41,11 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      'process.env': JSON.stringify(env),
+      'process.env': JSON.stringify({
+        ...env,
+        NODE_ENV: isProd ? 'production' : 'development',
+        PUBLIC_URL: publicUrl,
+      }),
     },
     server: {
       port: 3000,
