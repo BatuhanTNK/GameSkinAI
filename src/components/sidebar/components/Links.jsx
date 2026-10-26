@@ -49,6 +49,7 @@ export function SidebarLinks(props) {
           <li key={index} className="relative mb-1">
             <Link
               to={targetPath}
+              aria-current={isActive ? "page" : undefined}
               className={`flex items-center px-8 py-2.5 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "font-bold text-navy-700 dark:text-white bg-brand-50/50 dark:bg-navy-700/50"

@@ -19,6 +19,7 @@ import {
 } from "react-icons/md";
 import { useAuth } from "contexts/AuthContext";
 import { useTranslation } from "contexts/TranslationContext";
+import { useToast } from "contexts/ToastContext";
 
 // Girdi Referansı Portre / Taslak Görselleri (Before)
 import avatar4 from "assets/img/avatars/avatar4.png";   // c1: Savaşçı Kadın (Siyah Saçlı)
@@ -41,6 +42,7 @@ import mechaRunicGolem from "assets/img/hero/robot_fantasy.png";        // Rünl
 const InteractiveDemoSection = () => {
   const { t, lang } = useTranslation();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const demoConcepts = [
@@ -55,28 +57,28 @@ const InteractiveDemoSection = () => {
       id: "cyberpunk",
       name: "Cyberpunk Ninja",
       icon: "🤖",
-      badge: "Efsanevi Skin",
+      badge: t('studio.legendarySkin'),
       borderColor: "border-purple-500/60 shadow-purple-900/40",
     },
     {
       id: "fantasy",
       name: "Dark Knight",
       icon: "⚔️",
-      badge: "Destansı Skin",
+      badge: t('studio.epicSkin'),
       borderColor: "border-amber-500/60 shadow-amber-900/40",
     },
     {
       id: "scifi",
       name: "Mecha Pilot",
       icon: "🚀",
-      badge: "Efsanevi Skin",
+      badge: t('studio.legendarySkin'),
       borderColor: "border-cyan-500/60 shadow-cyan-900/40",
     },
     {
       id: "anime",
       name: "Anime Sorcerer",
       icon: "✨",
-      badge: "Nadir Skin",
+      badge: t('studio.rareSkin'),
       borderColor: "border-pink-500/60 shadow-pink-900/40",
     }
   ];
@@ -236,8 +238,10 @@ const InteractiveDemoSection = () => {
     }
   };
 
-  const [selectedConcept, setSelectedConcept] = useState(demoConcepts[0]);
-  const [selectedTheme, setSelectedTheme] = useState(demoThemes[0]);
+  const [conceptId, setConceptId] = useState(demoConcepts[0].id);
+  const [themeId, setThemeId] = useState(demoThemes[0].id);
+  const selectedConcept = demoConcepts.find(concept => concept.id === conceptId);
+  const selectedTheme = demoThemes.find(theme => theme.id === themeId);
   
   const [isSimulating, setIsSimulating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -281,10 +285,14 @@ const InteractiveDemoSection = () => {
     }, 900);
   };
 
-  const handleCopy = (text, key) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const handleCopy = async (text, key) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch {
+      showToast(t('studio.copyError'), 'error');
+    }
   };
 
   return (
@@ -317,7 +325,7 @@ const InteractiveDemoSection = () => {
               {demoConcepts.map((concept) => (
                 <button
                   key={concept.id}
-                  onClick={() => setSelectedConcept(concept)}
+                  onClick={() => { setConceptId(concept.id); setHasConverted(false); }}
                   className={`p-4 rounded-2xl border text-left transition-all duration-200 flex items-center gap-3.5 ${
                     selectedConcept.id === concept.id
                       ? "bg-brand-500 text-white border-brand-500 shadow-md shadow-brand-500/25 font-bold"
@@ -340,7 +348,7 @@ const InteractiveDemoSection = () => {
               {demoThemes.map((theme) => (
                 <button
                   key={theme.id}
-                  onClick={() => setSelectedTheme(theme)}
+                  onClick={() => { setThemeId(theme.id); setHasConverted(false); }}
                   className={`p-4.5 rounded-2xl border text-left transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
                     selectedTheme.id === theme.id
                       ? "bg-gradient-to-r from-brand-500 to-blue-600 text-white border-brand-500 shadow-lg shadow-brand-500/30 scale-[1.02] font-bold"
@@ -425,7 +433,7 @@ const InteractiveDemoSection = () => {
                       {t('landing.demoSuccessBadge')}
                     </h3>
                     <p className="text-xs text-gray-300 font-medium mt-0.5">
-                      Girdi: <strong className="text-white">{selectedConcept.label}</strong> • Stil: <strong className="text-yellow-300">{selectedTheme.name}</strong>
+                      {t('landing.demoInputRef')} <strong className="text-white">{selectedConcept.label}</strong> • {t('landing.demoAppliedStyle')} <strong className="text-yellow-300">{selectedTheme.name}</strong>
                     </p>
                   </div>
                 </div>
@@ -446,12 +454,12 @@ const InteractiveDemoSection = () => {
                     <div className="relative w-full h-52 sm:h-60 rounded-2xl overflow-hidden border-2 shadow-xl group" style={{ borderColor: '#3652ba' }}>
                       <img
                         src={selectedConcept.image}
-                        alt="Girdi Referansı"
+                        alt={t('landing.demoInputRef')}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex items-end justify-center p-2.5">
                         <span className="px-3 py-1 rounded-lg text-xs font-extrabold bg-black/80 text-white border border-white/20">
-                          📸 Girdi Referansı
+                          📸 {t('landing.demoInputRef')}
                         </span>
                       </div>
                     </div>
@@ -466,7 +474,7 @@ const InteractiveDemoSection = () => {
                       <MdAutoAwesome className="h-6 w-6" />
                     </div>
                     <span className="text-xs font-black text-yellow-300 uppercase tracking-wider">
-                      AI STİL
+                      {t('landing.heroAiConversion')}
                     </span>
                   </div>
 
@@ -530,7 +538,7 @@ const InteractiveDemoSection = () => {
                     }`}
                   >
                     <MdPalette className="h-4 w-4 shrink-0 text-white" />
-                    <span className="truncate">Renk Paleti</span>
+                    <span className="truncate">{t('converter.stylePalette')}</span>
                   </button>
                 </div>
 
@@ -539,14 +547,14 @@ const InteractiveDemoSection = () => {
                   <div className="space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-                        Midjourney v6.1 & SDXL İstem Metni:
+                        {t('landing.demoOutputLabel')}
                       </span>
                       <button
                         onClick={() => handleCopy(currentOutput.prompt, "prompt")}
                         className="px-3.5 py-1.5 rounded-xl bg-navy-700 hover:bg-navy-600 text-xs font-bold transition-all flex items-center gap-1.5 border border-navy-500 text-white shadow-sm"
                       >
                         {copiedKey === "prompt" ? <MdCheck className="text-emerald-300" /> : <MdContentCopy className="text-gray-300" />}
-                        <span>{copiedKey === "prompt" ? "Kopyalandı!" : "Promptu Kopyala"}</span>
+                        <span>{t(copiedKey === "prompt" ? 'landing.demoCopied' : 'landing.demoCopyPrompt')}</span>
                       </button>
                     </div>
 
@@ -555,9 +563,9 @@ const InteractiveDemoSection = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-gray-300 font-medium pt-1">
-                      <span>Zırh Tipi: <strong className="text-white">{currentOutput.armor}</strong></span>
-                      <span>Render Süresi: <strong className="text-emerald-400">{currentOutput.renderTime}</strong></span>
-                      <span>Seviye: <strong className="text-yellow-300">{currentOutput.rarity}</strong></span>
+                      <span>{t('studio.armorType')} <strong className="text-white">{currentOutput.armor}</strong></span>
+                      <span>{t('studio.renderTime')} <strong className="text-emerald-400">{currentOutput.renderTime}</strong></span>
+                      <span>{t('studio.rarity')} <strong className="text-yellow-300">{currentOutput.rarity}</strong></span>
                     </div>
                   </div>
                 )}
@@ -567,14 +575,14 @@ const InteractiveDemoSection = () => {
                   <div className="space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-                        Oyun Motoru Material & Shader Parametreleri:
+                        {t('studio.engineParameters')}
                       </span>
                       <button
                         onClick={() => handleCopy(engineConfigJson, "engine")}
                         className="px-3.5 py-1.5 rounded-xl bg-navy-700 hover:bg-navy-600 text-xs font-bold transition-all flex items-center gap-1.5 border border-navy-500 text-white shadow-sm"
                       >
                         {copiedKey === "engine" ? <MdCheck className="text-emerald-300" /> : <MdContentCopy className="text-gray-300" />}
-                        <span>{copiedKey === "engine" ? "Kopyalandı!" : "JSON Kopyala"}</span>
+                        <span>{t(copiedKey === "engine" ? 'landing.demoCopied' : 'studio.copyJson')}</span>
                       </button>
                     </div>
 
@@ -588,7 +596,7 @@ const InteractiveDemoSection = () => {
                 {activeTab === "palette" && (
                   <div className="space-y-4 animate-fadeIn">
                     <span className="text-xs font-bold text-gray-200 uppercase tracking-wider block">
-                      Karakter Materyal Renk Paleti (Hex Swatches):
+                      {t('studio.materialPalette')}
                     </span>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -604,14 +612,14 @@ const InteractiveDemoSection = () => {
                             style={{ backgroundColor: hex }}
                           />
                           <span className="text-xs font-mono font-bold text-gray-200 group-hover:text-white">
-                            {copiedKey === `hex-${i}` ? "Kopyalandı" : hex}
+                            {copiedKey === `hex-${i}` ? t('landing.demoCopied') : hex}
                           </span>
                         </div>
                       ))}
                     </div>
 
                     <p style={{ backgroundColor: '#111c44', borderColor: '#1B254B' }} className="text-xs text-gray-300 leading-relaxed p-3 rounded-xl border">
-                      💡 Renk kodlarının üzerine tıklayarak Unreal Engine veya Photoshop materyal düzenleyicinize tek tıkla kopyalayabilirsiniz.
+                      💡 {t('studio.paletteTip')}
                     </p>
                   </div>
                 )}

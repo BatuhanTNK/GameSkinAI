@@ -34,7 +34,7 @@ const Navbar = (props) => {
   const translatedBrandText = t(`nav.${brandText}`) !== `nav.${brandText}` ? t(`nav.${brandText}`) : brandText;
 
   return (
-    <nav className="sticky top-4 z-40 flex flex-row flex-wrap items-center justify-between rounded-xl bg-white/40 p-2.5 backdrop-blur-xl dark:bg-navy-800/40 border border-white/20 dark:border-navy-700/50 shadow-md">
+    <nav className="studio-panel-navbar sticky top-4 z-40 flex flex-row flex-wrap items-center justify-between gap-3">
       <div className="ml-[6px]">
         <div className="h-6 pt-1 flex items-center gap-1.5 text-xs text-navy-700 dark:text-gray-300">
           <Link
@@ -54,12 +54,14 @@ const Navbar = (props) => {
       </div>
 
       <div className="relative mt-[3px] flex h-[52px] items-center justify-end gap-2 sm:gap-3 rounded-full bg-white/90 px-3 py-2 shadow-lg shadow-shadow-500/10 dark:!bg-navy-800/90 dark:shadow-none border border-gray-100 dark:border-navy-700">
-        <span
+        <button
+          type="button"
+          aria-label={t('studio.toggleMenu')}
           className="flex cursor-pointer text-xl text-gray-600 dark:text-white xl:hidden p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700"
           onClick={onOpenSidenav}
         >
           <FiAlignJustify className="h-5 w-5" />
-        </span>
+        </button>
 
         {/* Dil Seçici */}
         <LanguageSwitcher size="sm" />

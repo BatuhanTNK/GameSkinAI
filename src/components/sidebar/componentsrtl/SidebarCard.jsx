@@ -11,20 +11,17 @@ const SidebarCard = () => {
   const { t, lang } = useTranslation();
 
   return (
-    <div className="relative mt-14 flex w-[256px] justify-center rounded-[20px] bg-gradient-to-br from-[#868CFF] via-[#432CF3] to-brand-500 pb-4">
-      <div className="absolute -top-12 flex h-24 w-24 items-center justify-center rounded-full border-[4px] border-white bg-gradient-to-b from-[#868CFF] to-brand-500 dark:!border-navy-800">
-        <MdAutoAwesome className="h-10 w-10 text-white" />
-      </div>
-
-      <div className="mt-16 flex h-fit flex-col items-center">
-        <p className="text-lg font-bold text-white">GameSkinAI</p>
-        <p className="mt-1 px-4 text-center text-sm text-white">
+    <div className="mx-4 mt-8 flex w-full flex-col rounded-xl border border-brand-100 bg-brand-50 p-5 dark:border-navy-700 dark:bg-navy-900">
+      <div className="flex h-fit flex-col items-start">
+        <MdAutoAwesome className="mb-3 h-6 w-6 text-brand-500 dark:text-brand-400" />
+        <p className="text-sm font-bold text-navy-700 dark:text-white">{t('studio.stylePreview')}</p>
+        <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
           {t('sidebar.cardDesc')}
         </p>
 
         <Link
           to={`/${lang}/admin/converter`}
-          className="text-medium mt-7 block rounded-full bg-gradient-to-b from-white/50 to-white/10 py-[12px] px-11 text-center text-base text-white hover:bg-gradient-to-b hover:from-white/40 hover:to-white/5"
+          className="mt-4 block text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
         >
           {t('sidebar.cardBtn')}
         </Link>

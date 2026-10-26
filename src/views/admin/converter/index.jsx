@@ -576,29 +576,23 @@ export default function Converter() {
     showToast(t('result.variationApplied'), 'success');
   };
 
-  // Kullanıcı adını al
-  const displayName =
-    user?.user_metadata?.display_name ||
-    user?.email?.split('@')[0] ||
-    t('common.user');
-
-
   return (
-    <div className="mt-3 flex flex-col gap-6">
+    <div className="forge-converter">
       {/* Karşılama */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="forge-converter-heading">
         <div>
-          <h2 className="text-3xl font-bold text-navy-700 dark:text-white">
-            {t('converter.welcome', { name: displayName })}
+          <span className="forge-kicker">CHARACTER WORKBENCH / 01</span>
+          <h2 className="forge-workbench-title">
+            {t('forge.workbenchTitle')}
           </h2>
-          <p className="mt-1 text-base text-gray-600 dark:text-gray-400">
+          <p className="forge-workbench-description">
             {t('converter.subtitle')}
           </p>
         </div>
 
         {/* Günlük Kredi Göstergesi */}
         <div
-          className={`flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-sm ${
+          className={`forge-workbench-credits flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-sm ${
             hasCredits
               ? 'border-brand-200 bg-white dark:border-brand-400/30 dark:bg-navy-800'
               : 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
@@ -636,9 +630,9 @@ export default function Converter() {
       )}
 
       {/* Ana İçerik Grid */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="forge-workbench">
         {/* Sol: Tema Seçimi (2 kolon genişliğinde) */}
-        <div className="xl:col-span-2">
+        <section className="forge-workbench-tools">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-navy-700 dark:text-white">
               {t('converter.step1')}
@@ -677,10 +671,10 @@ export default function Converter() {
             multiSelect={batchMode}
             selectedThemes={selectedThemes}
           />
-        </div>
+        </section>
 
         {/* Sağ: Fotoğraf Yükleme */}
-        <div className="xl:col-span-1">
+        <section className="forge-workbench-canvas">
           <div className="mb-4 flex items-center gap-2">
             <h3 className="text-lg font-bold text-navy-700 dark:text-white">
               {t('converter.step2')}
@@ -691,7 +685,7 @@ export default function Converter() {
               </span>
             )}
           </div>
-          <ImageUploader
+          <div className="forge-upload-canvas"><span className="forge-canvas-corner forge-corner-tl"/><span className="forge-canvas-corner forge-corner-tr"/><span className="forge-canvas-corner forge-corner-bl"/><span className="forge-canvas-corner forge-corner-br"/><ImageUploader
             file={uploadedFile}
             preview={previewUrl}
             onFileSelect={handleFileSelect}
@@ -699,21 +693,22 @@ export default function Converter() {
             error={uploadError}
             onError={setUploadError}
             disabled={isConverting}
-          />
+          /></div>
 
           {/* AI Stil Ayarları (isteğe bağlı) */}
-          <div className="mt-6">
+          <div className="forge-workbench-style-settings">
             <StyleSelector
               styleSettings={styleSettings}
               onChange={handleStyleChange}
               disabled={isConverting}
             />
           </div>
-        </div>
+        </section>
       </div>
 
       {/* Dönüştür Butonu */}
-      <div className="flex justify-center">
+      <div className="forge-workbench-generate">
+        <span className="forge-workbench-status"><span className="forge-status-dot"/>{t('forge.readyToCreate')}</span>
         <button
           type="button"
           onClick={batchMode ? handleBatchConvert : handleConvert}
@@ -723,7 +718,7 @@ export default function Converter() {
             isConverting ||
             !hasCredits
           }
-          className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 px-10 py-4 text-lg font-bold text-white shadow-xl transition-all duration-300 hover:from-brand-500 hover:to-brand-700 hover:shadow-2xl hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-xl"
+          className="forge-btn forge-btn-lime forge-generate-button disabled:cursor-not-allowed disabled:opacity-40"
         >
           <MdAutoAwesome className="h-6 w-6 transition-transform duration-300 group-hover:rotate-12" />
           {isConverting

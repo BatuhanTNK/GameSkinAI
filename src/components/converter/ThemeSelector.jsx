@@ -99,6 +99,7 @@ export default function ThemeSelector({ selectedTheme, onSelect, disabled, theme
             id={`theme-${theme.slug}`}
             type="button"
             disabled={disabled}
+            aria-pressed={isSelected}
             onClick={() => onSelect(theme.slug)}
             className={`group relative flex flex-col items-start rounded-[22px] border-2 p-5 text-left transition-all duration-300 ${
               isSelected
