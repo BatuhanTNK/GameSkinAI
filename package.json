@@ -37,6 +37,8 @@
     "build": "react-scripts build",
     "build:vite": "vite build",
     "preview": "vite preview",
+    "check:supabase": "node scripts/check-supabase.mjs",
+    "test:convert": "node scripts/convert.test.cjs",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "pretty": "prettier --write \"./**/*.{js,jsx,json}\""
@@ -69,4 +71,3 @@
     "vite": "^5.2.0"
   }
 }
-

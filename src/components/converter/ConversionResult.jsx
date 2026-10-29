@@ -51,6 +51,7 @@ export default function ConversionResult({
   onRetry,
   errorMessage,
   imagePrompt,
+  sourceImage,
   onApplyVariation,
 }) {
   const { t } = useTranslation();
@@ -74,8 +75,10 @@ export default function ConversionResult({
     if (!imagePrompt || isGeneratingVariations) return;
     setIsGeneratingVariations(true);
     try {
-      const urls = await Promise.all([0, 1, 2].map(() => generateImage(imagePrompt)));
+      const urls = await Promise.all([0, 1, 2].map(() => generateImage(imagePrompt, sourceImage)));
       setVariations(urls.map((url) => ({ url, loaded: false })));
+    } catch (error) {
+      showToast(error.message || t('converter.toast.error'), 'error');
     } finally {
       setIsGeneratingVariations(false);
     }
@@ -504,6 +507,10 @@ ConversionResult.propTypes = {
   onRetry: PropTypes.func.isRequired,
   errorMessage: PropTypes.string,
   imagePrompt: PropTypes.string,
+  sourceImage: PropTypes.shape({
+    base64: PropTypes.string,
+    mimeType: PropTypes.string,
+  }),
   onApplyVariation: PropTypes.func,
 };
 
@@ -512,5 +519,6 @@ ConversionResult.defaultProps = {
   isConverting: false,
   errorMessage: null,
   imagePrompt: null,
+  sourceImage: null,
   onApplyVariation: null,
 };

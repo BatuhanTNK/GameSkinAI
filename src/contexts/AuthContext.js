@@ -95,20 +95,6 @@ export function AuthProvider({ children }) {
               ...localMeta,
             },
           });
-        } else if (process.env.NODE_ENV === 'development') {
-          // Oturum açılmamışsa yerel geliştirme için hazır demo profil verisi + localMeta
-          setUser({
-            id: 'demo-user-id',
-            email: 'batuhan.tonk.1@gmail.com',
-            user_metadata: {
-              display_name: 'Batuhan Tonk',
-              bio: '',
-              favorite_game: 'minecraft',
-              avatar_preset: 'minecraft',
-              ...localMeta,
-            },
-            created_at: '2026-06-26T10:00:00.000Z',
-          });
         } else {
           setUser(null);
         }
@@ -135,6 +121,8 @@ export function AuthProvider({ children }) {
             ...currentLocal,
           },
         });
+      } else {
+        setUser(null);
       }
       setLoading(false);
     });

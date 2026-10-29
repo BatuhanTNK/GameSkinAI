@@ -122,28 +122,53 @@ function generateFallbackCharacter(themePrompt = '', isJson = false) {
  * API anahtarı sunucu tarafında (Supabase Deno Environment) gizlidir.
  */
 export async function analyzeAndConvert(imageBase64, mimeType, themePrompt, isJson = false, responseSchema = null) {
-  if (isSupabaseConfigured) {
+  // Lokal geliştirme ortamında (localhost / Antigravity önizleme) doğrudan Vite dev proxy üzerinden
+  // gerçek Gemini 2.5 Flash çalıştırılır; böylece Supabase oturum token'ı (401) hatası oluşmaz.
+  if (process.env.NODE_ENV === 'development' && typeof fetch === 'function') {
     try {
-      const data = await invokeEdgeFunction('convert', {
-        action: 'analyze',
-        imageBase64,
-        mimeType,
-        themePrompt,
-        isJson,
-        responseSchema,
+      const resp = await fetch('/__dev/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyze',
+          imageBase64,
+          mimeType,
+          themePrompt,
+          isJson,
+          responseSchema,
+        }),
       });
-
-      if (data?.description) {
-        return {
-          description: data.description,
-          imagePrompt: `Game character based on photo analysis: ${data.description.substring(0, 200)}`,
-        };
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.description) {
+          return {
+            description: data.description,
+            imagePrompt: `Game character based on photo analysis: ${data.description.substring(0, 200)}`,
+          };
+        }
       }
-    } catch (edgeErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.info('Edge Function çağrısı bilgisi:', edgeErr.message);
-      }
+    } catch (devErr) {
+      console.warn('Lokal Gemini proxy erişilemedi:', devErr);
     }
+  }
+
+  if (isSupabaseConfigured) {
+    const data = await invokeEdgeFunction('convert', {
+      action: 'analyze',
+      imageBase64,
+      mimeType,
+      themePrompt,
+      isJson,
+      responseSchema,
+    });
+
+    if (data?.description) {
+      return {
+        description: data.description,
+        imagePrompt: `Game character based on photo analysis: ${data.description.substring(0, 200)}`,
+      };
+    }
+    throw new Error('AI servisi karakter açıklaması döndürmedi.');
   }
 
   // Akıllı Demo/Fallback Karakter Üretici (Sunucu tarafı API olmadığında veya demo modunda)
@@ -168,47 +193,7 @@ function loadImage(src) {
 }
 
 /**
- * Resim verisini (ImageData) keskinleştirir (Sharpen Convolution Filter).
- */
-function sharpenImageData(imageData) {
-  const { width, height, data } = imageData;
-  
-  const bufferCanvas = document.createElement('canvas');
-  const bufferCtx = bufferCanvas.getContext('2d');
-  const output = bufferCtx.createImageData(width, height);
-  const dst = output.data;
-  
-  dst.set(data);
-  
-  for (let y = 1; y < height - 1; y++) {
-    const rowOffset = y * width;
-    const prevRowOffset = (y - 1) * width;
-    const nextRowOffset = (y + 1) * width;
-    
-    for (let x = 1; x < width - 1; x++) {
-      const idx = (rowOffset + x) * 4;
-      
-      const idxTop = (prevRowOffset + x) * 4;
-      const idxLeft = (rowOffset + (x - 1)) * 4;
-      const idxRight = (rowOffset + (x + 1)) * 4;
-      const idxBottom = (nextRowOffset + x) * 4;
-      
-      const r = data[idx] * 5 - (data[idxTop] + data[idxLeft] + data[idxRight] + data[idxBottom]);
-      dst[idx] = r < 0 ? 0 : (r > 255 ? 255 : r);
-      
-      const g = data[idx + 1] * 5 - (data[idxTop + 1] + data[idxLeft + 1] + data[idxRight + 1] + data[idxBottom + 1]);
-      dst[idx + 1] = g < 0 ? 0 : (g > 255 ? 255 : g);
-      
-      const b = data[idx + 2] * 5 - (data[idxTop + 2] + data[idxLeft + 2] + data[idxRight + 2] + data[idxBottom + 2]);
-      dst[idx + 2] = b < 0 ? 0 : (b > 255 ? 255 : b);
-    }
-  }
-  
-  return output;
-}
-
-/**
- * Dosyayı okur, boyutlandırır ve keskinleştirir.
+ * Dosyayı okur ve AI'a gönderilecek boyuta getirir (en fazla 1024px, JPEG).
  */
 export async function fileToBase64(file) {
   const mimeType = file.type || 'image/jpeg';
@@ -237,7 +222,7 @@ export async function fileToBase64(file) {
   try {
     const img = await loadImage(rawDataUrl);
 
-    const maxDim = 800;
+    const maxDim = 1024;
     let width = img.width;
     let height = img.height;
 
@@ -255,18 +240,22 @@ export async function fileToBase64(file) {
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    // Şeffaf PNG'ler JPEG'e çevrilirken siyah olmasın diye beyaz zemin
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
 
     ctx.drawImage(img, 0, 0, width, height);
 
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const sharpenedData = sharpenImageData(imageData);
-    ctx.putImageData(sharpenedData, 0, 0);
+    // Not: Eskiden burada keskinleştirme filtresi uygulanıyordu; gürültü/halo üretip
+    // yüz detaylarını bozduğu için kaldırıldı. Sadece boyutlandırma yapılır.
+    // PNG/WebP gibi büyük formatlar da JPEG'e çevrilerek Edge Function'a giden boyut küçültülür.
+    const outMime = 'image/jpeg';
+    const resizedBase64 = canvas.toDataURL(outMime, 0.9).split(',')[1];
 
-    const sharpenedBase64 = canvas.toDataURL(mimeType).split(',')[1];
-
-    return { base64: sharpenedBase64, mimeType };
+    return { base64: resizedBase64, mimeType: outMime };
   } catch (err) {
-    console.warn('Görüntü netleştirme işlemi başarısız oldu, orijinal görsel kullanılıyor:', err);
+    console.warn('Görüntü boyutlandırma işlemi başarısız oldu, orijinal görsel kullanılıyor:', err);
     const base64String = rawDataUrl.split(',')[1];
     return { base64: base64String, mimeType };
   }
@@ -282,34 +271,108 @@ function readFileAsDataUrl(file) {
 }
 
 /**
- * Görsel üretir. Önce Supabase Edge Function üzerinden Imagen API'yi dener,
- * başarısız olursa güvenli Pollinations AI fallback'i döndürür.
+ * Gemini görselini MIME bilgisini koruyan bir data URL olarak döndürür.
+ * Yapılandırılmış sunucunun hataları kullanıcıya iletilir.
+ * @param {string} prompt - Görsel üretim promptu
+ * @param {{base64: string, mimeType: string}} [sourceImage] - Referans fotoğraf (image-to-image).
+ *   Verilirse görsel modeli kişinin yüzünü/kıyafetini doğrudan fotoğraftan alır.
  */
-export async function generateImage(prompt) {
-  if (isSupabaseConfigured) {
-    try {
-      const data = await invokeEdgeFunction('convert', {
-        action: 'generateImage',
-        prompt,
-      });
+/**
+ * Ücretsiz görsel servisinin (pollinations.ai) sağ alt köşeye bastığı filigran
+ * şeridini (768x832 görselin alt 64 pikselini) kırparak temiz 768x768 kare görsel döndürür.
+ * @param {string} src - Data URL veya resim URL'i
+ * @returns {Promise<string>}
+ */
+async function stripBottomWatermark(src) {
+  try {
+    const img = await loadImage(src);
+    const size = img.width || 768;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    // Üst kare alanı (0, 0, size, size) çizerek alt filigran bandını dışarıda bırak
+    const sourceH = img.height > size ? size : Math.floor(img.height * 0.92);
+    ctx.drawImage(img, 0, 0, img.width, sourceH, 0, 0, size, size);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  } catch (_) {
+    return src;
+  }
+}
 
-      if (data?.imageBase64) {
-        return data.imageBase64;
+export async function generateImage(prompt, sourceImage = null) {
+  // Lokal geliştirme ortamında (localhost / Antigravity önizleme) doğrudan Vite dev proxy üzerinden
+  // görsel üretilir; böylece Supabase oturum token'ı (401) hatası oluşmaz.
+  if (process.env.NODE_ENV === 'development' && typeof fetch === 'function') {
+    try {
+      const resp = await fetch('/__dev/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generateImage',
+          prompt,
+          imageBase64: sourceImage?.base64,
+          mimeType: sourceImage?.mimeType || 'image/jpeg',
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.imageBase64) {
+          const rawUrl = `data:${data.mimeType || 'image/jpeg'};base64,${data.imageBase64}`;
+          return data.cropWatermark ? await stripBottomWatermark(rawUrl) : rawUrl;
+        }
+        if (data?.fallbackUrl) {
+          return await stripBottomWatermark(data.fallbackUrl);
+        }
       }
-    } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Edge Function generateImage fallback:', err.message);
+    } catch (devErr) {
+      console.warn('Lokal görsel proxy erişilemedi, doğrudan URL kullanılıyor:', devErr);
+    }
+    const seed = getSecureRandomSeed();
+    const rawFallback = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=832&nologo=true&seed=${seed}`;
+    return await stripBottomWatermark(rawFallback);
+  }
+
+  if (isSupabaseConfigured) {
+    const payload = { action: 'generateImage', prompt };
+    if (sourceImage?.base64) {
+      payload.imageBase64 = sourceImage.base64;
+      payload.mimeType = sourceImage.mimeType || 'image/jpeg';
+      payload.allowFreeFallback = true;
+    }
+    let data;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        data = await invokeEdgeFunction('convert', payload);
+        break;
+      } catch (error) {
+        // Sadece geçici sunucu hatasında bir kez yeniden dene; analiz tekrarlanmaz.
+        if (attempt > 0 || ![500, 502, 503, 504].includes(error.status)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
+
+    if (data?.imageBase64) {
+      const rawUrl = `data:${data.mimeType || 'image/png'};base64,${data.imageBase64}`;
+      return data.cropWatermark ? await stripBottomWatermark(rawUrl) : rawUrl;
+    }
+    if (data?.fallbackUrl) {
+      return await stripBottomWatermark(data.fallbackUrl);
+    }
+    throw new Error('AI servisi görsel döndürmedi.');
   }
 
   const seed = getSecureRandomSeed();
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`;
+  const rawFallback = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=832&nologo=true&seed=${seed}`;
+  return await stripBottomWatermark(rawFallback);
 }
 
 /**
  * Minecraft skin görseli üretir.
  */
 export async function generateSkinImage(imageBase64, mimeType, characterDescription) {
-  return generateImage(`Full body authentic Minecraft 3D cubic voxel character model based on: ${characterDescription}`);
+  return generateImage(
+    `Full body authentic Minecraft 3D cubic voxel character model based on: ${characterDescription}`,
+    imageBase64 ? { base64: imageBase64, mimeType } : null
+  );
 }

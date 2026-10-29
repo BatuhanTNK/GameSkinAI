@@ -5,8 +5,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { validateImageMagicBytes } from './imageValidator';
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (process.env.REACT_APP_SUPABASE_URL || '').trim();
+const supabaseAnonKey = (process.env.REACT_APP_SUPABASE_ANON_KEY || '').trim();
 
 /**
  * Supabase URL'sinin geçerli olup olmadığını kontrol eder.
@@ -66,7 +66,7 @@ export const isSupabaseConfigured = isConfigured;
  * @returns {Promise<string>} Resim public URL'i veya Signed URL
  */
 export async function uploadImage(file, bucketName = 'conversions') {
-  if (!isSupabaseConfigured) {
+  if (!isSupabaseConfigured || process.env.NODE_ENV === 'development') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result);
@@ -77,6 +77,7 @@ export async function uploadImage(file, bucketName = 'conversions') {
 
   // Magic Byte ile güvenli uzantı belirleme (Bulgu A6)
   const magicCheck = await validateImageMagicBytes(file);
+  if (!magicCheck.isValid) throw new Error(magicCheck.error);
   let safeExt = 'jpg';
   if (magicCheck.detectedType === 'image/png') safeExt = 'png';
   else if (magicCheck.detectedType === 'image/webp') safeExt = 'webp';
@@ -85,46 +86,23 @@ export async function uploadImage(file, bucketName = 'conversions') {
   const fileName = `${uuid}-${Date.now()}.${safeExt}`;
   const filePath = `${fileName}`;
 
-  try {
-    const { error } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, file, { upsert: false, contentType: magicCheck.detectedType || 'image/jpeg' });
+  const { error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file, { upsert: false, contentType: magicCheck.detectedType });
 
-    if (error) {
-      console.error('Supabase Storage yükleme hatası, yerel URL kullanılıyor:', error);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // Bucket private ise Signed URL dene, değilse Public URL al (Bulgu A7)
-    try {
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from(bucketName)
-        .createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 günlük erişim
-
-      if (!signedError && signedData?.signedUrl) {
-        return signedData.signedUrl;
-      }
-    } catch (sErr) {
-      console.warn('Signed URL oluşturulamadı, public URL kullanılıyor:', sErr);
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
-
-    return publicUrl;
-  } catch (err) {
-    console.error('Storage yükleme istisnası:', err);
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
+  if (error) {
+    throw new Error(`Görsel Supabase Storage'a yüklenemedi: ${error.message}`);
   }
+
+  // Private bucket için erişilebilir bir bağlantı oluştur.
+  const { data: signedData, error: signedError } = await supabase.storage
+    .from(bucketName)
+    .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+  if (!signedError && signedData?.signedUrl) {
+    return signedData.signedUrl;
+  }
+  throw new Error(`Görsel erişim bağlantısı oluşturulamadı: ${signedError?.message || 'Boş yanıt'}`);
 }
 
 /**
@@ -139,7 +117,12 @@ export async function uploadBase64Image(base64Str, mimeType = 'image/jpeg', buck
   if (typeof base64Str === 'string' && (base64Str.startsWith('http://') || base64Str.startsWith('https://'))) {
     return base64Str;
   }
-  if (!isSupabaseConfigured) {
+  const dataUrl = base64Str.match(/^data:(image\/[\w.+-]+);base64,([\s\S]+)$/);
+  if (dataUrl) {
+    mimeType = dataUrl[1];
+    base64Str = dataUrl[2];
+  }
+  if (!isSupabaseConfigured || process.env.NODE_ENV === 'development') {
     return `data:${mimeType};base64,${base64Str}`;
   }
 
@@ -156,10 +139,7 @@ export async function uploadBase64Image(base64Str, mimeType = 'image/jpeg', buck
 
     return await uploadImage(file, bucketName);
   } catch (err) {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Base64 resmi dönüştürme uyarısı:', err.message);
-    }
-    return `data:${mimeType};base64,${base64Str}`;
+    throw new Error(`AI görseli kaydedilemedi: ${err.message}`);
   }
 }
 
@@ -202,8 +182,21 @@ export async function invokeEdgeFunction(functionName, body) {
   });
 
   if (error) {
-    throw new Error(error.message || 'Edge Function çağrısı başarısız oldu.');
+    let message = error.message || 'Edge Function çağrısı başarısız oldu.';
+    if (error.context && typeof error.context.json === 'function') {
+      try {
+        const details = await error.context.json();
+        message = details.error || details.message || message;
+      } catch (_) { /* Yanıt JSON olmayabilir. */ }
+    } else if (error.name === 'FunctionsFetchError') {
+      message = 'Supabase sunucusuna ulaşılamıyor. Proje adresini, projenin aktif olduğunu ve internet bağlantısını kontrol edin.';
+    }
+    const invocationError = new Error(message);
+    invocationError.status = error.context?.status;
+    throw invocationError;
   }
+
+  if (data?.error) throw new Error(data.error);
 
   return data;
 }

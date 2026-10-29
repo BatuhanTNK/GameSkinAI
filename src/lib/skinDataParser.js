@@ -128,6 +128,11 @@ export function normalizeSkinData(rawSkinData) {
   // Aksesuar
   const accessory = sd.accessory || sd.hat || head.hat || head.accessory || 'none';
   const accessoryColor = resolveColor(sd.accessoryColor || sd.accessory_color, '#e53e3e');
+  const hasGlasses = Boolean(sd.hasGlasses === true || sd.hasGlasses === 'true' || accessory === 'glasses');
+  const glassesColor = resolveColor(sd.glassesColor || (accessory === 'glasses' ? sd.accessoryColor : ''), '#18181b');
+  const hatStyle = sd.hatStyle || (accessory === 'hat' || accessory === 'headband' ? accessory : 'none');
+  const hatColor = resolveColor(sd.hatColor || (accessory === 'hat' || accessory === 'headband' ? sd.accessoryColor : ''), '#1e293b');
+  const shirtStyle = sd.shirtStyle || 'hoodie';
 
   return {
     skinColor,
@@ -136,12 +141,17 @@ export function normalizeSkinData(rawSkinData) {
     eyeColor,
     shirtColor,
     shirtColor2: sd.shirtColor2 || sd.shirt_color_2 || '',
+    shirtStyle,
     sleeveLength,
     pantsColor,
     pantsLength,
     shoesColor,
     hasBeard,
     beardColor,
+    hasGlasses,
+    glassesColor,
+    hatStyle,
+    hatColor,
     accessory: typeof accessory === 'string' ? accessory : 'none',
     accessoryColor,
   };

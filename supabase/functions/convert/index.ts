@@ -51,46 +51,6 @@ function checkRateLimit(key: string): boolean {
   return true;
 }
 
-function generateFallbackCharacter(themePrompt = '', isJson = false) {
-  if (themePrompt.includes('Minecraft') || isJson) {
-    return JSON.stringify({
-      description: 'Fotoğrafınız analiz edilerek oluşturulmuş turuncu/beyaz formaya sahip özel Minecraft oyuncu skini.',
-      skinColor: '#FFDFC4',
-      hairColor: '#4A3728',
-      hairStyle: 'short',
-      eyeColor: '#2B547E',
-      shirtColor: '#FF6B00',
-      shirtColor2: '#FFFFFF',
-      sleeveLength: 'short',
-      pantsColor: '#1A2A3A',
-      pantsLength: 'short',
-      shoesColor: '#111111',
-      hasBeard: true,
-      beardColor: '#4A3728',
-      accessory: 'headband',
-      accessoryColor: '#FF6B00'
-    });
-  }
-
-  if (themePrompt.includes('Roblox')) {
-    return 'Karizmatik ve renkli Roblox avatarı. Şık sokak stili kıyafetler, modern kulaklık aksesuarı ve eğlenceli blok vücut yapısına sahiptir.';
-  }
-
-  if (themePrompt.includes('Fortnite')) {
-    return 'Futuristik 3D Fortnite battle royale savaşçısı. Taktiksel yelek, zırh kaplamaları, parlayan detaylar ve sırt çantası aksesuarı ile donatılmıştır.';
-  }
-
-  if (themePrompt.includes('Valorant')) {
-    return 'Taktiksel Valorant ajanı. Hücum sınıfı özel yeteneklere sahip, yüksek teknolojili koruyucu donanım ve şık renk paleti ile tasarlanmıştır.';
-  }
-
-  if (themePrompt.includes('Pokémon')) {
-    return 'Anime tarzında efsanevi Pokémon antrenörü. İkonik şapka, antrenör yeleği ve yanında sadık Pokémon dostu ile macera odaklı şık bir tasarıma sahiptir.';
-  }
-
-  return 'Oyun evreninize özel tasarlanmış benzersiz AI karakter kostümü ve detaylı görsel tasarımı.';
-}
-
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -101,9 +61,6 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    const apiKeyHeader = req.headers.get("apikey");
-
-    const token = (authHeader ? authHeader.replace("Bearer ", "") : apiKeyHeader || "").trim();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -113,9 +70,9 @@ serve(async (req) => {
     });
 
     const { data: { user: authUser } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
-    const isValidToken = token.length > 20;
 
-    if (!authUser && !isValidToken) {
+
+    if (!authUser) {
       console.warn("Auth verification failed for token.");
       return new Response(
         JSON.stringify({ error: "Geçersiz veya yetkisiz oturum token'ı." }),
@@ -133,9 +90,14 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, imageBase64, mimeType, themePrompt, isJson, responseSchema, prompt, testModel } = body;
+    const { action, imageBase64, mimeType, themePrompt, isJson, responseSchema, prompt, allowFreeFallback } = body;
 
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Gemini API anahtarı sunucuda tanımlı değil (GEMINI_API_KEY)." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (action === "listModels") {
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey?.trim()}`);
@@ -147,18 +109,12 @@ serve(async (req) => {
     }
 
     if (action === "analyze") {
-      let debugError = "";
       if (apiKey && apiKey.trim().length > 10) {
-        const candidateModels = testModel
-          ? [testModel]
-          : [
-              "gemini-3.5-flash-lite",
-              "gemini-flash-lite-latest",
-              "gemini-3.7-flash",
-              "gemini-2.5-flash"
-            ];
+        const candidateModels = [
+          Deno.env.get("GEMINI_ANALYSIS_MODEL") || "gemini-2.5-flash",
+        ];
         for (const modelName of candidateModels) {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
           const requestBody = {
             contents: [
               {
@@ -169,24 +125,25 @@ serve(async (req) => {
               },
             ],
             generationConfig: {
-              temperature: 0.7,
-              topK: 40,
-              topP: 0.95,
-              maxOutputTokens: 1024,
-              ...(isJson ? { responseMimeType: "application/json" } : {}),
+              temperature: 0.3,
+              maxOutputTokens: 2048,
+              // 2.5 modellerinde "thinking" token'ları maxOutputTokens'tan düşülüyor ve
+              // açıklamayı yarıda kesiyordu (finishReason=MAX_TOKENS). Bu görev için düşünmeye gerek yok.
+              ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+              ...(isJson ? { responseMimeType: "application/json", ...(responseSchema ? { responseSchema } : {}) } : {}),
             },
           };
 
           try {
             const aiResponse = await fetch(url, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey.trim() },
               body: JSON.stringify(requestBody),
             });
 
             if (aiResponse.ok) {
               const data = await aiResponse.json();
-              const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              const textContent = data.candidates?.[0]?.content?.parts?.filter((part: any) => !part.thought && part.text).map((part: any) => part.text).join("");
               if (textContent) {
                 return new Response(
                   JSON.stringify({ description: textContent, modelUsed: modelName }),
@@ -205,63 +162,88 @@ serve(async (req) => {
         console.warn("GEMINI_API_KEY is missing or invalid in Edge Function environment.");
       }
 
-      // Akıllı Fallback Karakter Açıklaması (Sıfır Hata Korumalı 200 OK)
-      const fallbackText = generateFallbackCharacter(themePrompt, isJson);
       return new Response(
-        JSON.stringify({ description: fallbackText }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Gemini fotoğrafı analiz edemedi. Sunucudaki API anahtarını, model erişimini ve kotayı kontrol edin." }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else if (action === "generateImage") {
-      if (apiKey && apiKey.trim().length > 10) {
-        const imagenModels = ["imagen-3.0-generate-002", "imagen-4.0-generate-001"];
-        for (const imgModel of imagenModels) {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${imgModel}:predict?key=${apiKey.trim()}`;
-          const requestBody = {
-            instances: [{ prompt }],
-            parameters: { aspectRatio: "1:1", numberOfImages: 1, outputMimeType: "image/jpeg" },
-          };
+      const model = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";
+      // Fotoğraf gönderildiyse görsel modeline referans olarak verilir (image-to-image).
+      // Fotoğrafsız üretimde kişinin yüzü/kıyafeti kayboluyordu.
+      const parts: any[] = [];
+      if (imageBase64) parts.push({ inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } });
+      parts.push({ text: prompt });
 
-          try {
-            const imgResponse = await fetch(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(requestBody),
-            });
-
-            if (imgResponse.ok) {
-              const data = await imgResponse.json();
-              if (data.predictions?.[0]?.bytesBase64Encoded) {
-                return new Response(
-                  JSON.stringify({ imageBase64: data.predictions[0].bytesBase64Encoded }),
-                  { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
-              }
-            }
-          } catch (e) {}
+      const imgResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+          }),
         }
+      );
+      if (imgResponse.ok) {
+        const data = await imgResponse.json();
+        const image = data.candidates?.[0]?.content?.parts?.find((part: any) => !part.thought && part.inlineData?.data)?.inlineData;
+        if (image?.data) {
+          return new Response(JSON.stringify({ imageBase64: image.data, mimeType: image.mimeType || "image/png" }), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        console.error("Gemini image response had no image. finishReason:", data.candidates?.[0]?.finishReason, data.promptFeedback);
+        return new Response(JSON.stringify({ error: "Gemini bu fotoğraf için görsel üretmedi (güvenlik filtresi olabilir). Farklı bir fotoğrafla deneyin." }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+      const errText = await imgResponse.text();
+      console.error("Gemini image generation failed:", imgResponse.status, errText);
 
-      const randomBuffer = new Uint32Array(1);
-      crypto.getRandomValues(randomBuffer);
-      const seed = randomBuffer[0] % 1000000;
-
-      const pollinationUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`;
-      try {
-        const polResp = await fetch(pollinationUrl);
-        if (polResp.ok) {
-          const arrayBuffer = await polResp.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      // Ücretsiz Gemini API anahtarlarında görsel üretim kotası 0 (429) olduğundan,
+      // istemci ücretsiz yedek üretimi istediyse Gemini 2.5 Flash'ın çıkardığı detaylı
+      // görsel betimleme ile ücretsiz görsel servisi üzerinden üretim yapılır.
+      if (allowFreeFallback) {
+        const randomBuffer = new Uint32Array(1);
+        crypto.getRandomValues(randomBuffer);
+        const seed = randomBuffer[0] % 1000000;
+        const pollinationUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=832&nologo=true&seed=${seed}`;
+        try {
+          const polResp = await fetch(pollinationUrl);
+          if (polResp.ok) {
+            const bytes = new Uint8Array(await polResp.arrayBuffer());
+            let binary = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+            }
+            const base64 = btoa(binary);
+            return new Response(
+              JSON.stringify({ imageBase64: base64, mimeType: polResp.headers.get("content-type") || "image/jpeg", cropWatermark: true }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          // Sunucu IP'si hız limitine takılırsa tarayıcı kendi IP'siyle yükleyebilsin
           return new Response(
-            JSON.stringify({ imageBase64: base64 }),
+            JSON.stringify({ fallbackUrl: pollinationUrl, mimeType: "image/jpeg", cropWatermark: true }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } catch (polErr) {
+          console.warn("Free image fallback fetch error, returning fallbackUrl:", polErr);
+          return new Response(
+            JSON.stringify({ fallbackUrl: pollinationUrl, mimeType: "image/jpeg", cropWatermark: true }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-      } catch (e) {}
+      }
 
-      return new Response(
-        JSON.stringify({ error: "Görsel servisi şu anda meşgul." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const quotaMsg = imgResponse.status === 429
+        ? `Görsel modeli (${model}) için kota yok veya aşıldı. Ücretsiz Gemini anahtarlarında görsel üretim kotası 0 olabilir; Google AI Studio'da faturalandırmayı açın veya daha sonra tekrar deneyin.`
+        : "Gemini görsel üretemedi. Sunucudaki model erişimini ve kotayı kontrol edin.";
+      return new Response(JSON.stringify({ error: quotaMsg }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(

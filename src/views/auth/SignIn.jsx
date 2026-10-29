@@ -87,7 +87,11 @@ export default function SignIn() {
             onClick={async () => {
               setError('');
               const { error: oauthErr } = await signInWithGoogle();
-              if (oauthErr) setError(oauthErr.message || t('auth.googleLoginFailed'));
+              if (oauthErr) {
+                setError(oauthErr.message || t('auth.googleLoginFailed'));
+                return;
+              }
+              navigate(ROUTES.CONVERTER);
             }}
             className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-gray-200/80 bg-white px-4 py-3 text-sm font-semibold text-navy-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 dark:border-white/10 dark:bg-navy-800 dark:text-white dark:hover:bg-navy-700"
           >

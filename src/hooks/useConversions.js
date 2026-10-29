@@ -225,20 +225,19 @@ export function useConversions() {
         user_display_name: user.user_metadata?.display_name || null,
       };
 
-      const demoData = {
-        ...newConversion,
-        id: 'conv-' + Date.now(),
-        created_at: new Date().toISOString(),
-      };
-      // Bayat closure yerine ref'teki güncel listeyi kullan (batch'te art arda ekleme)
-      const updated = [demoData, ...conversionsRef.current];
-      conversionsRef.current = updated;
-      setConversions(updated);
-      safeSetLocalStorage('gameskinai_conversions', updated);
-
-      if (!isSupabaseConfigured || !isValidUuid(user.id)) {
+      if (!isSupabaseConfigured) {
+        const demoData = {
+          ...newConversion,
+          id: 'conv-' + Date.now(),
+          created_at: new Date().toISOString(),
+        };
+        const updated = [demoData, ...conversionsRef.current];
+        conversionsRef.current = updated;
+        setConversions(updated);
+        safeSetLocalStorage('gameskinai_conversions', updated);
         return { data: demoData, error: null };
       }
+      if (!isValidUuid(user.id)) throw new Error('Lütfen gerçek hesabınızla giriş yapın.');
 
       const { data, error: insertError } = await supabase
         .from(TABLES.CONVERSIONS)
@@ -246,14 +245,11 @@ export function useConversions() {
         .select()
         .single();
 
-      if (insertError) {
-        console.warn('Supabase kayıt uyarısı, yerel veri kullanılıyor:', insertError.message);
-        return { data: demoData, error: null };
-      }
-
-      const replaced = [data, ...conversionsRef.current.filter((c) => c.id !== demoData.id)];
-      conversionsRef.current = replaced;
-      setConversions(replaced);
+      if (insertError) throw insertError;
+      const updated = [data, ...conversionsRef.current];
+      conversionsRef.current = updated;
+      setConversions(updated);
+      safeSetLocalStorage('gameskinai_conversions', updated);
 
       return { data, error: null };
     } catch (err) {

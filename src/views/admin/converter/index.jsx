@@ -10,7 +10,7 @@ import { useAuth } from 'contexts/AuthContext';
 import { useConversions } from 'hooks/useConversions';
 import { useCredits } from 'hooks/useCredits';
 import { analyzeAndConvert, fileToBase64, generateImage } from 'lib/gemini';
-import { THEMES, getThemeBySlug } from 'lib/themes';
+import { THEMES, getThemeBySlug, buildImagePrompt } from 'lib/themes';
 import { uploadImage, uploadBase64Image, fetchThemes } from 'lib/supabase';
 import {
   CONVERSION_STATUS,
@@ -22,6 +22,7 @@ import StyleSelector, { buildStylePromptSuffix } from 'components/converter/Styl
 import ConversionResult from 'components/converter/ConversionResult';
 import { MdAutoAwesome, MdBolt, MdLayers, MdDownload, MdErrorOutline } from 'react-icons/md';
 import { normalizeSkinData, parseTextDescriptionToSkinData, safeParseAiJson } from 'lib/skinDataParser';
+import { renderMinecraft3DDataUrl } from 'lib/minecraftRenderer';
 import { showLocalNotification } from 'lib/notifications';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
@@ -101,6 +102,8 @@ export default function Converter() {
 
   // Varyasyon üretimi için son kullanılan görsel prompt'u (ozellik_onerileri.md #3)
   const [lastImagePrompt, setLastImagePrompt] = useState(null);
+  // Varyasyonlar da aynı fotoğrafı referans alsın diye son dönüşümün fotoğrafı saklanır
+  const [lastSourceImage, setLastSourceImage] = useState(null);
 
   // Rate limiting
   const lastRequestTime = useRef(0);
@@ -244,12 +247,15 @@ export default function Converter() {
    * @returns {Promise<{displayResult: Object, imagePrompt: string}>}
    */
   const performThemeConversion = async ({ theme, base64, mimeType, originalImageUrl }) => {
-    // 1. Gemini API'ye gönder (Açıklama üret)
     const isMinecraft = theme.slug === 'minecraft';
+    const sourceImage = { base64, mimeType };
+
+    // 1. Önce Gemini 2.5 Flash (ücretsiz vizyon) ile fotoğraftaki kişinin detaylı görsel betimlemesini çıkar
     const aiResult = await analyzeAndConvert(base64, mimeType, theme.prompt, isMinecraft, theme.responseSchema);
 
     let finalDescription = aiResult.description;
     let userFriendlyDescription = aiResult.description;
+    let minecraftSkinData = null;
 
     if (isMinecraft) {
       try {
@@ -274,6 +280,7 @@ export default function Converter() {
 
         // Normalize et: Her zaman standart key isimlerini kullan
         const normalizedSkinData = normalizeSkinData(sd);
+        minecraftSkinData = normalizedSkinData;
 
         if (process.env.NODE_ENV === 'development') {
           console.log('Successfully parsed Gemini JSON:', parsed);
@@ -288,6 +295,7 @@ export default function Converter() {
       } catch (err) {
         // Kesilen JSON ayrıştırılamazsa sessizce metin yedek ayrıştırıcısını çalıştır
         const fallbackSkinData = parseTextDescriptionToSkinData(aiResult.description);
+        minecraftSkinData = fallbackSkinData;
         const rawMatch = aiResult.description.match(/"description"\s*:\s*"([^"]+)"/i);
         const cleanDesc = rawMatch ? rawMatch[1] : aiResult.description;
         userFriendlyDescription = cleanDesc;
@@ -298,29 +306,21 @@ export default function Converter() {
       }
     }
 
-    // Prompt sanitizasyonu: Zararlı komut enjeksiyonlarını temizle
-    const safeDescription = (userFriendlyDescription || '')
-      .replace(/ignore\s+(previous|all)\s+instructions/gi, '')
-      .replace(/(system|user|assistant):/gi, '')
-      .replace(/[#{}\\]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // 2. Görsel üretimi için prompt hazırla (stil ayarları son ek olarak eklenir)
-    let resultImageUrl = '';
-    const styleSuffix = buildStylePromptSuffix(styleSettings);
-    const imagePrompt = (isMinecraft
-      ? `Authentic 3D Minecraft character model, sharp cubic voxel blocks, pure Minecraft keyart style based on: ${safeDescription}. Cubic head, cubic hands, blocky body, dynamic pose, studio lighting, clean background, no smooth curves, true Minecraft game aesthetic.`
-      : `${theme.label} character based on: ${safeDescription}. Stylized matching ${theme.label} game aesthetic, centered portrait, single character, high-quality detailed render, clean plain studio background.`) + styleSuffix;
-
-    try {
-      const resultImageBase64 = await generateImage(imagePrompt);
-      // 3. Üretilen görseli Supabase'e yükle
-      resultImageUrl = await uploadBase64Image(resultImageBase64, 'image/jpeg');
-    } catch (err) {
-      const seed = Math.floor(Math.random() * 1000000);
-      resultImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=512&height=512&nologo=true&seed=${seed}`;
+    if (!isMinecraft) {
+      // Gemini bazen markdown işaretleri döndürebilir; kullanıcıya düz metin gösterilir.
+      userFriendlyDescription = (userFriendlyDescription || '').replace(/[*_`#>]+/g, '').replace(/\s+/g, ' ').trim();
+      finalDescription = userFriendlyDescription;
     }
+
+    // 2. Analizden çıkan kişi betimlemesi + oyun stili ile görsel üret
+    // Minecraft temasında harici servislerin (pollinations.ai) bulanık kil figür çizmesi yerine
+    // Gemini 2.5 Flash'ın çıkardığı 64x64 skin dokusundan gerçek 3B kübik voksel karakter render edilir.
+    const styleSuffix = buildStylePromptSuffix(styleSettings);
+    const imagePrompt = buildImagePrompt(theme, styleSuffix, userFriendlyDescription);
+    const resultImageBase64 = isMinecraft && minecraftSkinData
+      ? renderMinecraft3DDataUrl(minecraftSkinData)
+      : await generateImage(imagePrompt, sourceImage);
+    const resultImageUrl = await uploadBase64Image(resultImageBase64);
 
     // 4. Supabase'e veya local state'e kaydet
     const conversionData = {
@@ -337,7 +337,7 @@ export default function Converter() {
       await addConversion(conversionData);
 
     if (saveError) {
-      console.error('Supabase kayıt hatası:', saveError);
+      throw new Error(`Dönüşüm kaydedilemedi: ${saveError}`);
     }
 
     const displayResult = savedConversion || {
@@ -346,7 +346,7 @@ export default function Converter() {
       created_at: new Date().toISOString(),
     };
 
-    return { displayResult, imagePrompt };
+    return { displayResult, imagePrompt, sourceImage };
   };
 
   /**
@@ -409,15 +409,10 @@ export default function Converter() {
       const { base64, mimeType } = await fileToBase64(uploadedFile);
 
       // 2. Orijinal fotoğrafı Supabase Storage'a yükle
-      let originalImageUrl = previewUrl;
-      try {
-        originalImageUrl = await uploadImage(uploadedFile);
-      } catch (err) {
-        console.error('Orijinal görsel yükleme hatası:', err);
-      }
+      const originalImageUrl = await uploadImage(uploadedFile);
 
       // 3. AI analizi + görsel üretimi + kayıt (ortak akış)
-      const { displayResult, imagePrompt } = await performThemeConversion({
+      const { displayResult, imagePrompt, sourceImage } = await performThemeConversion({
         theme,
         base64,
         mimeType,
@@ -426,6 +421,7 @@ export default function Converter() {
 
       // Varyasyon üretiminde yeniden kullanılmak üzere sakla
       setLastImagePrompt(imagePrompt);
+      setLastSourceImage(sourceImage);
 
       // 4. Sonucu göster
       setResult(displayResult);
@@ -495,12 +491,7 @@ export default function Converter() {
     try {
       // Fotoğraf hazırlığı (tüm temalar için bir kez)
       const { base64, mimeType } = await fileToBase64(uploadedFile);
-      let originalImageUrl = previewUrl;
-      try {
-        originalImageUrl = await uploadImage(uploadedFile);
-      } catch (err) {
-        console.error('Orijinal görsel yükleme hatası:', err);
-      }
+      const originalImageUrl = await uploadImage(uploadedFile);
 
       const total = selectedThemes.length;
       let successCount = 0;
@@ -802,6 +793,7 @@ export default function Converter() {
         onRetry={handleRetry}
         errorMessage={conversionError}
         imagePrompt={lastImagePrompt}
+        sourceImage={lastSourceImage}
         onApplyVariation={handleApplyVariation}
       />
     </div>

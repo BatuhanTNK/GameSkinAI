@@ -1,8 +1,61 @@
 /**
  * @fileoverview Oyun tema tanımları ve AI prompt şablonları.
- * Her tema, kullanıcının fotoğrafını farklı bir oyun tarzına dönüştürmek için
- * Gemini API'ye gönderilecek özel prompt içerir.
+ * Her tema iki bileşen içerir:
+ * - `prompt`: Gemini 2.5 Flash (ücretsiz vizyon modeli) ile fotoğrafı analiz edip kişinin
+ *   cinsiyet/yaş görünümü, cilt tonu, saç stili/rengi, sakal/bıyık, göz/kaş, aksesuar ve
+ *   kıyafet renklerini oyun evrenine uyarlayarak çıkaran prompt.
+ * - `imageStyle`: Görsel üretim modeline (Gemini Image veya ücretsiz Pollinations/Sana)
+ *   gönderilen net sanat stili tanımı. Tam görsel promptu `buildImagePrompt` ile üretilir.
  */
+
+/**
+ * Fotoğraftaki kişinin tüm ayırt edici görsel özelliklerini eksiksiz çıkaran analiz promptu.
+ * Görsel üretim modeli (özellikle ücretsiz metinden-görsele model) bu çıktıyı doğrudan
+ * kullandığı için cinsiyet, cilt tonu, saç, sakal, aksesuar ve kıyafet net belirtilmelidir.
+ * @param {string} gameName - Oyun/tema adı
+ * @returns {string}
+ */
+function describePrompt(gameName) {
+  return `Look carefully at the person in this photo. In 2-3 sentences (max 65 words), describe how this exact person looks as a ${gameName} character.
+You MUST explicitly state:
+1) gender presentation, approximate age, and exact skin tone (for example: "A young Black man with dark brown skin", "A young fair-skinned woman", "A middle-aged olive-skinned man"),
+2) exact hairstyle, hair length, texture, and hair color,
+3) eye color, eyebrows, facial hair (or clean-shaven), and any visible accessories (glasses, earrings, nose ring, headwear, headphones),
+4) their exact visible clothing items, colors, and patterns adapted into ${gameName} outfit style.
+Rules: plain text only. No markdown, no headings, no bullet points, no character names or titles, no abilities, no stats, no backstory.`;
+}
+
+/** Minecraft analiz cevabı için Gemini responseSchema (JSON kesilmesini/bozulmasını önler). */
+const MINECRAFT_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    description: { type: 'STRING' },
+    skinColor: { type: 'STRING' },
+    hairColor: { type: 'STRING' },
+    hairStyle: { type: 'STRING', enum: ['short', 'medium', 'long'] },
+    eyeColor: { type: 'STRING' },
+    shirtColor: { type: 'STRING' },
+    shirtColor2: { type: 'STRING' },
+    shirtStyle: { type: 'STRING', enum: ['hoodie', 'jacket', 'tshirt', 'striped', 'suit'] },
+    sleeveLength: { type: 'STRING', enum: ['short', 'long'] },
+    pantsColor: { type: 'STRING' },
+    pantsLength: { type: 'STRING', enum: ['short', 'long'] },
+    shoesColor: { type: 'STRING' },
+    hasBeard: { type: 'BOOLEAN' },
+    beardColor: { type: 'STRING' },
+    hasGlasses: { type: 'BOOLEAN' },
+    glassesColor: { type: 'STRING' },
+    hatStyle: { type: 'STRING', enum: ['none', 'cap', 'hat', 'headband'] },
+    hatColor: { type: 'STRING' },
+    accessory: { type: 'STRING', enum: ['headband', 'glasses', 'hat', 'none'] },
+    accessoryColor: { type: 'STRING' },
+  },
+  required: [
+    'description', 'skinColor', 'hairColor', 'hairStyle', 'eyeColor', 'shirtColor', 'shirtColor2', 'shirtStyle',
+    'sleeveLength', 'pantsColor', 'pantsLength', 'shoesColor', 'hasBeard', 'beardColor',
+    'hasGlasses', 'glassesColor', 'hatStyle', 'hatColor', 'accessory', 'accessoryColor',
+  ],
+};
 
 export const THEMES = [
   {
@@ -13,25 +66,31 @@ export const THEMES = [
     icon: 'FaCube',
     color: 'green',
     bgGradient: 'from-green-500 to-emerald-600',
+    responseSchema: MINECRAFT_RESPONSE_SCHEMA,
     prompt: `Analyze this person's photo very carefully and extract their visual features for a Minecraft skin.
 
 IMPORTANT: You MUST respond with ONLY a raw JSON object matching the requested keys exactly. Do not output any markdown code blocks, backticks, or other text outside of the JSON structure.
 
 Use EXACTLY this flat JSON format:
 {
-  "description": "A brief user-friendly character description of the Minecraft character skin that resembles this person, max 80 words.",
+  "description": "2 short plain-text sentences (max 50 words) stating their gender/age appearance, exact skin tone, hairstyle and hair color, eye color, facial hair, accessories, and exact clothing colors/items as a Minecraft character.",
   "skinColor": "#HEX",
   "hairColor": "#HEX",
   "hairStyle": "short or medium or long",
   "eyeColor": "#HEX",
-  "shirtColor": "#HEX (dominant color of their shirt/jersey)",
-  "shirtColor2": "#HEX (secondary color of their shirt stripes, empty string if solid)",
+  "shirtColor": "#HEX (dominant color of their hoodie/shirt/jacket)",
+  "shirtColor2": "#HEX (secondary accent/logo/inner-shirt color, empty string if solid)",
+  "shirtStyle": "hoodie or jacket or tshirt or striped or suit",
   "sleeveLength": "short or long",
   "pantsColor": "#HEX (color of their shorts/pants)",
   "pantsLength": "short or long (use short if they wear shorts, long if long pants)",
   "shoesColor": "#HEX",
   "hasBeard": true or false,
   "beardColor": "#HEX (empty string if no beard)",
+  "hasGlasses": true or false,
+  "glassesColor": "#HEX (frame color if wearing glasses/sunglasses, empty string if none)",
+  "hatStyle": "none or cap or hat or headband",
+  "hatColor": "#HEX (color of their cap/hat/beanie/headband, empty string if none)",
   "accessory": "headband or glasses or hat or none",
   "accessoryColor": "#HEX (empty string if none)"
 }
@@ -39,12 +98,13 @@ Use EXACTLY this flat JSON format:
 Rules:
 - skinColor: Match the person's actual skin tone precisely (e.g. #C68642 for medium brown, #FFDFC4 for fair, #8D5524 for dark)
 - hairColor: Match the actual hair color you see
-- shirtColor: Match the dominant color of their shirt/jacket/clothing/armor (e.g. #8B4513 for brown leather jacket, #2B3A4A for dark, #DD6B20 for orange)
-- shirtColor2: If their shirt has stripes or secondary accents, provide the hex color, otherwise empty string
-- pantsColor: Match the dominant color of their pants/shorts/trousers (e.g. #1A365D for jeans/blue, #111111 for black)
+- shirtColor: Match the dominant color of their shirt/hoodie/jacket (e.g. #F4F4F6 for white hoodie, #1A1A1A for black, #DD6B20 for orange)
+- shirtStyle: Use "hoodie" for hoodies/sweatshirts, "jacket" for open jackets/coats over a shirt, "striped" ONLY if the shirt has full stripes, otherwise "tshirt"
 - hasBeard: MUST be true if the person has ANY beard, stubble, goatee, or mustache. False only if completely clean-shaven.
-- beardColor: Hex color of their facial hair, empty string if no beard.
-- All color values MUST be valid 6-digit hex starting with #`
+- hasGlasses: MUST be true if the person is wearing eyeglasses or sunglasses.
+- hatStyle: Use "cap" or "hat" if the person is wearing a cap, beanie, or hat (even if they also wear glasses!).
+- All non-empty color values MUST be valid 6-digit hex starting with #`,
+    imageStyle: `Authentic 3D Minecraft cubic voxel character render in official Minecraft key art style, square blocky head and body with 8x8 pixel face texture and sharp 90-degree edges`,
   },
   {
     slug: 'roblox',
@@ -54,14 +114,8 @@ Rules:
     icon: 'FaGamepad',
     color: 'red',
     bgGradient: 'from-red-500 to-rose-600',
-    prompt: `You are a Roblox avatar designer. Analyze this person's photo.
-    Create a Roblox-style avatar description matching this person:
-    - Characteristic round head, blocky proportions
-    - Cartoonish, colorful style
-    - Match hair color, eye color, and outfit to the person
-    - Describe face accessories, clothing items, and color scheme
-    - Roblox avatar uses simple geometric shapes and bright colors
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Roblox avatar'),
+    imageStyle: `Roblox 3D avatar character render in Roblox Studio style, classic blocky plastic torso and limbs, cylindrical Roblox head with painted face and 3D Roblox hairpiece`,
   },
   {
     slug: 'among-us',
@@ -71,14 +125,8 @@ Rules:
     icon: 'FaUserAstronaut',
     color: 'purple',
     bgGradient: 'from-purple-500 to-violet-600',
-    prompt: `You are an Among Us character designer. Analyze this person's photo.
-    Create an Among Us crewmate design inspired by this person:
-    - Classic Among Us bean-shaped body with visor
-    - Choose a suit color that matches or complements the person's clothing
-    - Add a matching hat or accessory that reflects their personality/appearance
-    - Describe the color scheme: suit color, visor color, any pet
-    - Keep the iconic Among Us silhouette
-    Keep the response under 150 words.`,
+    prompt: describePrompt('Among Us crewmate astronaut'),
+    imageStyle: `Official Among Us 2D cartoon crewmate character with thick black outlines, bean-shaped spacesuit in their outfit color, glass visor, and a custom hair/hat accessory on top matching their hairstyle`,
   },
   {
     slug: 'pixel-rpg',
@@ -88,14 +136,8 @@ Rules:
     icon: 'FaDragon',
     color: 'yellow',
     bgGradient: 'from-yellow-500 to-amber-600',
-    prompt: `You are a pixel art RPG character designer. Analyze this person's photo.
-    Design a classic JRPG pixel art character based on this person:
-    - 16-bit or 32-bit pixel art style (Final Fantasy, Zelda inspired)
-    - Match the person's hair, eye color, and complexion
-    - Choose an RPG class that fits their appearance (Warrior, Mage, Archer, etc.)
-    - Describe equipment, clothing, and color palette
-    - Include character stats flavor text (e.g., "The Brave Warrior of the East")
-    Keep the response under 200 words.`,
+    prompt: describePrompt('16-bit pixel art JRPG hero'),
+    imageStyle: `16-bit SNES JRPG pixel art character sprite in Chrono Trigger and Final Fantasy VI style, crisp visible square pixels, retro fantasy RPG armor matching their outfit colors`,
   },
   {
     slug: 'stardew',
@@ -105,15 +147,8 @@ Rules:
     icon: 'FaSeedling',
     color: 'teal',
     bgGradient: 'from-teal-500 to-cyan-600',
-    prompt: `You are a Stardew Valley character designer. Analyze this person's photo.
-    Create a Stardew Valley-style farmer character based on this person:
-    - Cute, charming pixel art style with warm colors
-    - Match hair color, eye color, and skin tone
-    - Choose a farmer outfit that reflects their personality
-    - Add a seasonal accessory (hat, tool, pet)
-    - Describe the character's farm specialty (crops, animals, fishing, mining)
-    - Warm, cozy aesthetic with earthy color palette
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Stardew Valley pixel farmer'),
+    imageStyle: `Stardew Valley pixel art farmer character portrait, cute cozy 16-bit pixel art with warm earthy colors and visible pixels`,
   },
   {
     slug: 'fortnite',
@@ -123,14 +158,8 @@ Rules:
     icon: 'FaCrosshairs',
     color: 'blue',
     bgGradient: 'from-blue-500 to-indigo-600',
-    prompt: `You are a Fortnite skin designer. Analyze this person's photo.
-    Create a Fortnite character outfit description matching this person:
-    - Stylized 3D action hero look
-    - Vibrant and modern battle royale outfit matching their clothing colors
-    - Cool tactical gear, boots, and gloves
-    - Match their hairstyle, hair color, and facial expression
-    - Add a unique Fortnite back bling accessory (backpack) that fits their style
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Fortnite battle royale skin'),
+    imageStyle: `Fortnite 3D character skin render in Epic Games Unreal Engine 5 style, stylized heroic proportions, smooth shading, vibrant item-shop lighting`,
   },
   {
     slug: 'gta-sa',
@@ -140,13 +169,8 @@ Rules:
     icon: 'FaCar',
     color: 'orange',
     bgGradient: 'from-orange-500 to-amber-600',
-    prompt: `You are a GTA San Andreas character artist. Analyze this person's photo.
-    Design a 2004-style low-polygon 3D character matching this person:
-    - Classic PS2-era low-poly aesthetic
-    - Los Santos street fashion matching their actual clothes (jeans, tank top, t-shirt, chains, sneakers)
-    - Match hair color, facial features, and build
-    - Emphasize San Andreas nostalgic textures (slightly pixelated but iconic)
-    Keep the response under 200 words.`,
+    prompt: describePrompt('GTA San Andreas PS2 street character'),
+    imageStyle: `GTA San Andreas 2004 PS2 low-polygon 3D character model, retro low-poly faceted geometry and nostalgic Los Santos street style`,
   },
   {
     slug: 'pokemon',
@@ -156,13 +180,8 @@ Rules:
     icon: 'FaCircle',
     color: 'red',
     bgGradient: 'from-red-500 to-rose-600',
-    prompt: `You are a Pokémon character designer. Analyze this person's photo.
-    Design an anime-style Pokémon Trainer based on this person:
-    - Classic Pokémon anime art style (Nintendo/GameFreak style)
-    - Custom trainer cap, vest/jacket, and bag reflecting the colors of their outfit
-    - Match hair color, style, eye color, and face shape
-    - Mention their signature Pokémon companion that would match their personality
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Pokémon anime trainer'),
+    imageStyle: `Official Pokémon anime trainer illustration in Ken Sugimori and Game Freak 2D cel-shaded anime style, clean bold line art, holding a Poké Ball`,
   },
   {
     slug: 'valorant',
@@ -172,16 +191,9 @@ Rules:
     icon: 'FaShieldAlt',
     color: 'purple',
     bgGradient: 'from-purple-500 to-indigo-600',
-    prompt: `You are a Valorant character designer. Analyze this person's photo.
-    Design a playable Valorant Agent based on this person:
-    - Futuristic cell-shaded tactical art style (Riot Games style)
-    - Tactical vest, armor, straps, and high-tech utility belts
-    - Color scheme matching their clothing precisely
-    - Describe their class (Duelist, Initiator, Controller, or Sentinel)
-    - Detail their unique signature abilities (e.g. fire, wind, shadow, tech)
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Valorant tactical agent'),
+    imageStyle: `Valorant agent portrait in Riot Games painterly cel-shaded 3D art style, sharp graphic shapes, hand-painted textures, sleek tactical streetwear`,
   },
-  // Yeni Eklenen Temalar
   {
     slug: 'brawl-stars',
     label: 'Brawl Stars',
@@ -190,13 +202,8 @@ Rules:
     icon: 'FaGamepad',
     color: 'purple',
     bgGradient: 'from-purple-600 to-indigo-700',
-    prompt: `You are a Brawl Stars character designer. Analyze this person's photo.
-    Design a 3D Brawl Stars brawler character based on this person:
-    - Chunky, stylized cartoon 3D model with bold outlines and vibrant colors
-    - Match their hairstyle, facial features, skin tone, and clothing style
-    - Give them a unique brawler weapon or gadget matching their vibe
-    - Detail their Super ability and brawler role (Damage Dealer, Tank, Support, Assassin)
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Brawl Stars 3D cartoon brawler'),
+    imageStyle: `Brawl Stars 3D brawler character in Supercell chunky cartoon style, stylized big head, glossy vibrant colors, expressive cartoon face`,
   },
   {
     slug: 'clash-royale',
@@ -206,13 +213,8 @@ Rules:
     icon: 'FaCrown',
     color: 'amber',
     bgGradient: 'from-amber-500 to-yellow-600',
-    prompt: `You are a Clash Royale / Clash of Clans character designer. Analyze this person's photo.
-    Create a Clash-style kingdom troop card based on this person:
-    - Supercell signature 3D cartoon art style with expressive faces and crown accents
-    - Custom armor/tunic matching their outfit colors
-    - Give them an iconic troop title (e.g., "The Royal Archer", "Elixir Knight")
-    - Include troop rarity (Epic/Legendary) and elixir cost
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Clash Royale medieval kingdom warrior'),
+    imageStyle: `Clash Royale 3D character render in Supercell cartoon style, expressive cartoon face, polished medieval armor in their outfit colors with gold crown accents`,
   },
   {
     slug: 'lol',
@@ -222,13 +224,8 @@ Rules:
     icon: 'FaDragon',
     color: 'blue',
     bgGradient: 'from-blue-600 to-cyan-700',
-    prompt: `You are a League of Legends concept artist. Analyze this person's photo.
-    Design a playable LoL Champion based on this person:
-    - High-fantasy Riot splash art style with dramatic lighting and glowing magical effects
-    - Detailed armor, robes, or weaponry reflecting their outfit colors
-    - Specify their lane/role (Top, Jungle, Mid, ADC, Support) and champion title
-    - Outline passive and ultimate abilities (R) inspired by their persona
-    Keep the response under 200 words.`,
+    prompt: describePrompt('League of Legends fantasy champion'),
+    imageStyle: `League of Legends champion splash art in Riot Games high-fantasy digital painting style, dramatic rim lighting, ornate fantasy armor matching their outfit colors`,
   },
   {
     slug: 'apex',
@@ -238,13 +235,8 @@ Rules:
     icon: 'FaCrosshairs',
     color: 'red',
     bgGradient: 'from-red-600 to-orange-700',
-    prompt: `You are an Apex Legends character designer. Analyze this person's photo.
-    Design a new Apex Legend based on this person:
-    - Gritty, futuristic sci-fi battle royale hero design (Respawn style)
-    - High-tech jump kit, mechanical armor plates, and visor matching their clothing
-    - Define their Legend class (Recon, Assault, Skirmisher, Support, Controller)
-    - Detail Tactical and Ultimate abilities
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Apex Legends sci-fi hero'),
+    imageStyle: `Apex Legends character portrait in Respawn gritty sci-fi 3D style, futuristic tactical armor plates and jump-kit harness in their outfit colors, face clearly visible`,
   },
   {
     slug: 'lego',
@@ -254,13 +246,8 @@ Rules:
     icon: 'FaCube',
     color: 'yellow',
     bgGradient: 'from-yellow-400 to-amber-500',
-    prompt: `You are a LEGO minifigure designer. Analyze this person's photo.
-    Create an official LEGO minifigure model inspired by this person:
-    - Classic yellow or accurate skin-tone LEGO minifigure head with painted face expression
-    - Cylindrical head, stud top, trapezoidal plastic torso, and blocky legs
-    - Print their exact shirt pattern, logos, and pants onto the plastic torso and leg prints
-    - Include a custom plastic LEGO hairpiece/hat accessory
-    Keep the response under 200 words.`,
+    prompt: describePrompt('LEGO minifigure toy'),
+    imageStyle: `Official LEGO minifigure 3D studio product render, glossy ABS plastic, cylindrical LEGO head with top stud, painted LEGO face, moulded plastic hairpiece, printed blocky torso`,
   },
   {
     slug: 'fall-guys',
@@ -270,12 +257,8 @@ Rules:
     icon: 'FaSmile',
     color: 'pink',
     bgGradient: 'from-pink-500 to-rose-600',
-    prompt: `You are a Fall Guys costume designer. Analyze this person's photo.
-    Design a Fall Guys bean character costume based on this person:
-    - Round bean-shaped jellybean body with two cute black dot eyes and faceplate
-    - Whimsical plush costume outfit translating their hair, glasses, shirt, and shoes into a fun bean cosplay
-    - Vibrant glossy textures and obstacle-course ready vibe
-    Keep the response under 150 words.`,
+    prompt: describePrompt('Fall Guys bean costume character'),
+    imageStyle: `Fall Guys 3D bean character in a cute glossy plush costume matching their hair, accessories, and outfit colors, round jellybean body with faceplate`,
   },
   {
     slug: 'genshin',
@@ -285,13 +268,8 @@ Rules:
     icon: 'FaGem',
     color: 'teal',
     bgGradient: 'from-teal-400 to-emerald-600',
-    prompt: `You are a Genshin Impact character designer. Analyze this person's photo.
-    Create a 5-star playable Genshin Impact anime character based on this person:
-    - Beautiful HoYoverse 3D cel-shaded anime aesthetic with intricate layered outfits
-    - Assign an Element (Pyro, Hydro, Anemo, Electro, Dendro, Cryo, Geo) matching their outfit color
-    - Choose weapon type (Sword, Claymore, Polearm, Bow, Catalyst)
-    - Describe their elemental vision gem location and burst animation
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Genshin Impact anime hero'),
+    imageStyle: `Genshin Impact 5-star playable character in HoYoverse 3D cel-shaded anime style, expressive anime eyes, ornate layered fantasy outfit in their real clothing colors with gold trim`,
   },
   {
     slug: 'cyberpunk',
@@ -301,13 +279,8 @@ Rules:
     icon: 'FaBolt',
     color: 'yellow',
     bgGradient: 'from-yellow-400 to-cyan-500',
-    prompt: `You are a Cyberpunk 2077 character concept artist. Analyze this person's photo.
-    Design a Night City mercenary (V-style) based on this person:
-    - Dark futuristic sci-fi aesthetic with glowing neon accents and Kiroshi optics
-    - Cybernetic face/arm implants, LED collar jacket, street-kid/corpo fashion
-    - Match hair style, tattoos, facial hair, and clothing colors
-    - Detail signature cyberware weapons (Mantis Blades, Monowire, Smart Smartguns)
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Cyberpunk 2077 Night City mercenary'),
+    imageStyle: `Cyberpunk 2077 character portrait in CD Projekt Red realistic sci-fi 3D style, subtle facial cyberware lines, glowing LED collar techwear jacket in their outfit colors, neon rim lighting`,
   },
   {
     slug: 'witcher',
@@ -317,13 +290,8 @@ Rules:
     icon: 'FaShieldAlt',
     color: 'slate',
     bgGradient: 'from-gray-700 to-slate-900',
-    prompt: `You are a Witcher universe character designer. Analyze this person's photo.
-    Design a Witcher monster hunter or sorcerer character matching this person:
-    - Gritty dark medieval fantasy aesthetic (CD Projekt Red style)
-    - Studded leather jacket, steel shoulder pauldrons, double swords (steel & silver)
-    - Match facial features, hair, beard, scars, and cat-like Witcher eyes
-    - Detail signature Witcher Sign magic spell (Aard, Igni, Quen, Yrden, Axii)
-    Keep the response under 200 words.`,
+    prompt: describePrompt('The Witcher medieval monster hunter'),
+    imageStyle: `The Witcher 3 character portrait in CD Projekt Red dark medieval fantasy 3D style, studded leather armor in their outfit colors, silver and steel swords on back, wolf medallion`,
   },
   {
     slug: 'cs2',
@@ -333,15 +301,42 @@ Rules:
     icon: 'FaUserSecret',
     color: 'emerald',
     bgGradient: 'from-emerald-700 to-green-900',
-    prompt: `You are a Counter-Strike 2 agent designer. Analyze this person's photo.
-    Design a CS2 tactical agent (CT or T squad) based on this person:
-    - Photorealistic Source 2 tactical military gear (ballistic helmet, Kevlar vest, radio, goggles)
-    - Outfit color scheme matching their clothes translated into camo/black tactical wear
-    - Match face shape, eyes, hair/beard under tactical gear
-    - Include custom gloves, patches, and equipment belt details
-    Keep the response under 200 words.`,
+    prompt: describePrompt('Counter-Strike 2 tactical operator'),
+    imageStyle: `Counter-Strike 2 agent portrait in photorealistic Source 2 3D style, tactical Kevlar vest, radio and gear in their outfit colors, face clearly visible without full mask`,
   },
 ];
+
+/**
+ * Görsel üretim modeline gönderilecek tam promptu oluşturur.
+ * Hem fotoğraf referanslı modeller (Gemini Image) hem de ücretsiz metinden-görsele
+ * modeller (Pollinations/Sana) ile yüksek doğrulukta çalışacak şekilde kişinin
+ * analiz edilen görsel tanımını (`characterDescription`) ve oyun stilini birleştirir.
+ *
+ * @param {Object} theme - Tema objesi
+ * @param {string} [styleSuffix] - Kullanıcının seçtiği ek stil ayarları (", a, b" biçiminde)
+ * @param {string} [characterDescription] - Gemini 2.5 Flash tarafından çıkarılan kişi betimlemesi
+ * @returns {string}
+ */
+export function buildImagePrompt(theme, styleSuffix = '', characterDescription = '') {
+  const label = theme?.label || 'video game';
+  const style = theme?.imageStyle || `${label} character render in official ${label} game art style`;
+  const cleanDesc = (characterDescription || '')
+    .replace(/ignore\s+(previous|all)\s+instructions/gi, '')
+    .replace(/(system|user|assistant):/gi, '')
+    .replace(/[*_`#{}\\]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const extra = (styleSuffix || '').replace(/^\s*,\s*/, '').trim();
+
+  const parts = [
+    `${style}.`,
+    cleanDesc ? `Character appearance: ${cleanDesc}` : '',
+    extra ? `Style direction: ${extra}.` : '',
+    `Centered portrait, single character, high detail, clean studio background, no text, no watermark, no extra people.`,
+  ].filter(Boolean);
+
+  return parts.join(' ');
+}
 
 /**
  * Slug'a göre tema bulma yardımcı fonksiyonu
