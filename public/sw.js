@@ -1,12 +1,12 @@
 /**
  * GameSkinAI Service Worker (ozellik_onerileri.md #15).
  * Strateji:
- *  - HTML/navigasyon: network-first (güncellemeler anında ulaşır, offline'da cache).
+ *  - HTML/navigasyon: network-first (güncellemeler anında ulaşır, SPA alt rotalarında index.html çekilir).
  *  - Statik varlıklar (js/css/img/font): stale-while-revalidate.
  *  - API istekleri (Supabase, Gemini vb.) asla cache'lenmez.
  */
 
-const CACHE_VERSION = 'gameskinai-v1';
+const CACHE_VERSION = 'gameskinai-v3';
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 
@@ -18,6 +18,7 @@ const getShellUrls = () => {
 };
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
@@ -69,13 +70,21 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (isApiRequest(url)) return; // API'ler her zaman ağa gider
 
-  // Navigasyon istekleri: network-first, offline'da shell'e düş
+  // Navigasyon istekleri: network-first, SPA alt rotalarında (404) index.html'i ağdan çek
   if (request.mode === 'navigate') {
     const scope = self.registration ? self.registration.scope : '/';
     const indexUrl = (scope.endsWith('/') ? scope : scope + '/') + 'index.html';
     event.respondWith(
       fetch(request)
-        .then((response) => {
+        .then(async (response) => {
+          if (!response.ok) {
+            const shellResp = await fetch(indexUrl, { cache: 'no-cache' });
+            if (shellResp.ok) {
+              const copy = shellResp.clone();
+              caches.open(SHELL_CACHE).then((cache) => cache.put(indexUrl, copy));
+              return shellResp;
+            }
+          }
           const copy = response.clone();
           caches.open(SHELL_CACHE).then((cache) => cache.put(indexUrl, copy));
           return response;

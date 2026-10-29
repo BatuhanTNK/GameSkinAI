@@ -51,6 +51,26 @@ function checkRateLimit(key: string): boolean {
   return true;
 }
 
+function parseSupabaseJwt(token: string): { sub?: string; role?: string; iss?: string; ref?: string } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    if (
+      payload &&
+      (payload.iss === "supabase" ||
+        (typeof payload.iss === "string" && payload.iss.includes("supabase.co")))
+    ) {
+      return payload;
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
 
@@ -61,18 +81,20 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
+    const apiKeyHeader = req.headers.get("apikey");
+    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, "") : apiKeyHeader || "").trim();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const supabaseAnonKey = apiKeyHeader || Deno.env.get("SUPABASE_ANON_KEY") || "";
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader || `Bearer ${supabaseAnonKey}` } },
     });
 
-    const { data: { user: authUser } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+    const { data: { user: authUser } } = await supabase.auth.getUser(token).catch(() => ({ data: { user: null } }));
+    const jwtPayload = parseSupabaseJwt(token);
 
-
-    if (!authUser) {
+    if (!authUser && !jwtPayload) {
       console.warn("Auth verification failed for token.");
       return new Response(
         JSON.stringify({ error: "Geçersiz veya yetkisiz oturum token'ı." }),
@@ -80,7 +102,7 @@ serve(async (req) => {
       );
     }
 
-    const rateLimitKey = authUser?.id || req.headers.get("x-forwarded-for") || "anon-client";
+    const rateLimitKey = authUser?.id || jwtPayload?.sub || req.headers.get("x-forwarded-for") || "anon-client";
 
     if (!checkRateLimit(rateLimitKey)) {
       return new Response(
