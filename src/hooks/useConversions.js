@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from 'lib/supabase';
+import { supabase, isSupabaseConfigured, normalizeConversionUrls } from 'lib/supabase';
 import { useAuth } from 'contexts/AuthContext';
 import { TABLES } from 'lib/constants';
 
@@ -95,11 +95,13 @@ function safeSetLocalStorage(key, items) {
  * Dönüşüm geçmişini yöneten custom hook.
  */
 export function useConversions() {
-  const { user } = useAuth();
+  const { user, loading: authLoading = false } = useAuth();
+  const userId = user?.id;
   const [conversions, setConversions] = useState(() => {
     try {
       const stored = localStorage.getItem('gameskinai_conversions');
-      return stored ? JSON.parse(stored) : [];
+      const list = stored ? JSON.parse(stored) : [];
+      return Array.isArray(list) ? list.map(normalizeConversionUrls) : [];
     } catch (e) {
       return [];
     }
@@ -117,23 +119,29 @@ export function useConversions() {
    * Kullanıcının tüm dönüşümlerini getirir.
    */
   const fetchConversions = useCallback(async () => {
-    if (!user) {
+    if (authLoading) {
+      return;
+    }
+
+    if (!userId) {
       setConversions([]);
       setLoading(false);
       return;
     }
 
-    const hasValidUuid = isValidUuid(user.id);
+    const hasValidUuid = isValidUuid(userId);
 
     if (!isSupabaseConfigured || !hasValidUuid) {
       try {
         const stored = localStorage.getItem('gameskinai_conversions');
         const publicMap = getLocalPublicMap();
         const list = stored ? JSON.parse(stored) : [];
-        const merged = list.map((item) => ({
-          ...item,
-          is_public: item.is_public !== undefined ? item.is_public : !!publicMap[item.id],
-        }));
+        const merged = list.map((item) =>
+          normalizeConversionUrls({
+            ...item,
+            is_public: item.is_public !== undefined ? item.is_public : !!publicMap[item.id],
+          })
+        );
         setConversions(merged);
       } catch (e) {
         console.error('LocalStorage okuma hatası:', e);
@@ -142,36 +150,64 @@ export function useConversions() {
       return;
     }
 
+    let timeoutId;
     try {
-      setLoading(true);
+      const hasCached =
+        conversionsRef.current.length > 0 &&
+        Boolean(localStorage.getItem('gameskinai_conversions'));
+      if (hasCached) {
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      const queryPromise = supabase
         .from(TABLES.CONVERSIONS)
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error('Dönüşüm geçmişi zaman aşımına uğradı.'));
+        }, 15000);
+        if (typeof timeoutId?.unref === 'function') {
+          timeoutId.unref();
+        }
+      });
+
+      const { data, error: fetchError } = await Promise.race([
+        queryPromise,
+        timeoutPromise,
+      ]);
 
       if (fetchError) throw fetchError;
 
       const publicMap = getLocalPublicMap();
-      const merged = (data || []).map((item) => ({
-        ...item,
-        is_public: item.is_public !== undefined ? item.is_public : !!publicMap[item.id],
-      }));
+      const merged = (data || []).map((item) =>
+        normalizeConversionUrls({
+          ...item,
+          is_public: item.is_public !== undefined ? item.is_public : !!publicMap[item.id],
+        })
+      );
 
       setConversions(merged);
+      if (merged.length > 0 || localStorage.getItem('gameskinai_conversions') !== null) {
+        safeSetLocalStorage('gameskinai_conversions', merged);
+      }
     } catch (err) {
       console.warn('Dönüşüm geçmişi Supabase uyarısı, yerel veriler gösteriliyor:', err.message);
       try {
         const stored = localStorage.getItem('gameskinai_conversions');
         const list = stored ? JSON.parse(stored) : [];
-        setConversions(list);
+        setConversions(Array.isArray(list) ? list.map(normalizeConversionUrls) : []);
       } catch (e) {}
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setLoading(false);
     }
-  }, [user]);
+  }, [userId, authLoading]);
 
   /**
    * Belirtilen ID'ye sahip dönüşümü siler.
@@ -226,11 +262,11 @@ export function useConversions() {
       };
 
       if (!isSupabaseConfigured) {
-        const demoData = {
+        const demoData = normalizeConversionUrls({
           ...newConversion,
           id: 'conv-' + Date.now(),
           created_at: new Date().toISOString(),
-        };
+        });
         const updated = [demoData, ...conversionsRef.current];
         conversionsRef.current = updated;
         setConversions(updated);
@@ -246,12 +282,13 @@ export function useConversions() {
         .single();
 
       if (insertError) throw insertError;
-      const updated = [data, ...conversionsRef.current];
+      const normalizedData = normalizeConversionUrls(data);
+      const updated = [normalizedData, ...conversionsRef.current];
       conversionsRef.current = updated;
       setConversions(updated);
       safeSetLocalStorage('gameskinai_conversions', updated);
 
-      return { data, error: null };
+      return { data: normalizedData, error: null };
     } catch (err) {
       console.error('Dönüşüm kaydedilemedi:', err);
       return { data: null, error: err.message };
@@ -271,17 +308,20 @@ export function useConversions() {
     }
 
     try {
-      const updated = conversions.map((c) => (c.id === id ? { ...c, ...updateData } : c));
+      const normalizedUpdate = normalizeConversionUrls(updateData);
+      const updated = conversions.map((c) =>
+        c.id === id ? normalizeConversionUrls({ ...c, ...normalizedUpdate }) : c
+      );
       setConversions(updated);
       safeSetLocalStorage('gameskinai_conversions', updated);
 
       if (!isSupabaseConfigured || !isValidUuid(user.id)) {
-        return { data: { id, ...updateData }, error: null };
+        return { data: normalizeConversionUrls({ id, ...normalizedUpdate }), error: null };
       }
 
       const { data, error: updateError } = await supabase
         .from(TABLES.CONVERSIONS)
-        .update(updateData)
+        .update(normalizedUpdate)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
@@ -291,12 +331,15 @@ export function useConversions() {
         console.warn('Supabase güncelleme uyarısı:', updateError.message);
       }
 
-      return { data: data || { id, ...updateData }, error: null };
+      return { data: normalizeConversionUrls(data || { id, ...normalizedUpdate }), error: null };
     } catch (err) {
       console.warn('Dönüşüm güncelleme hatası:', err.message);
-      const updated = conversions.map((c) => (c.id === id ? { ...c, ...updateData } : c));
+      const normalizedUpdate = normalizeConversionUrls(updateData);
+      const updated = conversions.map((c) =>
+        c.id === id ? normalizeConversionUrls({ ...c, ...normalizedUpdate }) : c
+      );
       setConversions(updated);
-      return { data: { id, ...updateData }, error: null };
+      return { data: normalizeConversionUrls({ id, ...normalizedUpdate }), error: null };
     }
   };
 
@@ -318,12 +361,12 @@ export function useConversions() {
       combined.forEach((item) => {
         const isPub = item.is_public || !!publicMap[item.id];
         if (isPub && !uniqueMap.has(item.id)) {
-          const safeItem = {
+          const safeItem = normalizeConversionUrls({
             ...item,
             original_image_url: null,
             is_public: true,
             userLiked: !!likesMap[item.id],
-          };
+          });
           uniqueMap.set(item.id, safeItem);
         }
       });
@@ -331,11 +374,13 @@ export function useConversions() {
     } catch (e) {
       localPublicList = conversions
         .filter((c) => c.is_public || publicMap[c.id])
-        .map((c) => ({
-          ...c,
-          original_image_url: null,
-          userLiked: !!likesMap[c.id],
-        }));
+        .map((c) =>
+          normalizeConversionUrls({
+            ...c,
+            original_image_url: null,
+            userLiked: !!likesMap[c.id],
+          })
+        );
     }
 
     if (!isSupabaseConfigured) {
@@ -353,11 +398,14 @@ export function useConversions() {
 
       const dbMap = new Map();
       (data || []).forEach((item) =>
-        dbMap.set(item.id, {
-          ...item,
-          is_public: true,
-          userLiked: !!likesMap[item.id],
-        })
+        dbMap.set(
+          item.id,
+          normalizeConversionUrls({
+            ...item,
+            is_public: true,
+            userLiked: !!likesMap[item.id],
+          })
+        )
       );
       localPublicList.forEach((item) => {
         if (!dbMap.has(item.id)) {
@@ -449,7 +497,7 @@ export async function fetchPublicConversionById(id) {
       const found = list.find((c) => c.id === id);
       if (found && (found.is_public || publicMap[found.id])) {
         // Orijinal fotoğraf gizlilik gereği public sayfada gösterilmez
-        return { ...found, original_image_url: null, is_public: true };
+        return normalizeConversionUrls({ ...found, original_image_url: null, is_public: true });
       }
     } catch (e) {
       // yoksay
@@ -470,7 +518,7 @@ export async function fetchPublicConversionById(id) {
       .maybeSingle();
 
     if (error) throw error;
-    if (data) return data;
+    if (data) return normalizeConversionUrls(data);
     return readLocal();
   } catch (err) {
     console.warn('Public dönüşüm çekme uyarısı, yerel veriler deneniyor:', err.message);

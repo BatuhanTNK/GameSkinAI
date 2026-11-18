@@ -10,6 +10,7 @@ import ComparisonSlider from './ComparisonSlider';
 import MinecraftSkinPreview from './MinecraftSkinPreview';
 import ShareButtons from './ShareButtons';
 import { parseConversionDescription } from 'lib/skinDataParser';
+import { normalizeStorageImageUrl } from 'lib/supabase';
 import { useToast } from 'contexts/ToastContext';
 import { useTranslation } from 'contexts/TranslationContext';
 
@@ -19,6 +20,9 @@ export default function HistoryDetailModal({ conversion, onClose }) {
   const [viewMode, setViewMode] = useState('slider');
 
   if (!conversion) return null;
+
+  const originalImageUrl = normalizeStorageImageUrl(conversion.original_image_url);
+  const resultImageUrl = normalizeStorageImageUrl(conversion.result_image_url);
 
   const { descriptionText, skinData, skinImageUrl, isMinecraft } = parseConversionDescription(
     conversion.result_description || '',
@@ -32,7 +36,7 @@ export default function HistoryDetailModal({ conversion, onClose }) {
 
   const handleDownloadImage = async () => {
     try {
-      const url = conversion.result_image_url;
+      const url = resultImageUrl;
       if (!url) return;
       if (url.startsWith('data:')) {
         const link = document.createElement('a');
@@ -54,8 +58,8 @@ export default function HistoryDetailModal({ conversion, onClose }) {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      if (conversion.result_image_url) {
-        window.open(conversion.result_image_url, '_blank');
+      if (resultImageUrl) {
+        window.open(resultImageUrl, '_blank');
       }
     }
   };
@@ -104,7 +108,7 @@ export default function HistoryDetailModal({ conversion, onClose }) {
         {/* Modal İçerik (Scrollable) */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Görsel Modu Seçici */}
-          {conversion.original_image_url && conversion.result_image_url && (
+          {originalImageUrl && resultImageUrl && (
             <div className="mb-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -132,16 +136,16 @@ export default function HistoryDetailModal({ conversion, onClose }) {
           )}
 
           {/* Resim Karşılaştırma */}
-          {(conversion.original_image_url || conversion.result_image_url) && (
+          {(originalImageUrl || resultImageUrl) && (
             <>
-              {viewMode === 'slider' && conversion.original_image_url && conversion.result_image_url ? (
+              {viewMode === 'slider' && originalImageUrl && resultImageUrl ? (
                 <div className="mb-6">
                   {isMinecraft ? (
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-3">
                       <div className="mx-auto w-full max-w-xl md:col-span-2">
                         <ComparisonSlider
-                          beforeImage={conversion.original_image_url}
-                          afterImage={conversion.result_image_url}
+                          beforeImage={originalImageUrl}
+                          afterImage={resultImageUrl}
                         />
                       </div>
                       <div className="flex flex-col justify-center md:col-span-1">
@@ -151,22 +155,22 @@ export default function HistoryDetailModal({ conversion, onClose }) {
                   ) : (
                     <div className="mx-auto w-full max-w-xl">
                       <ComparisonSlider
-                        beforeImage={conversion.original_image_url}
-                        afterImage={conversion.result_image_url}
+                        beforeImage={originalImageUrl}
+                        afterImage={resultImageUrl}
                       />
                     </div>
                   )}
                 </div>
               ) : (
                 <div className={`mb-6 grid grid-cols-1 gap-6 ${isMinecraft ? 'lg:grid-cols-3 md:grid-cols-3' : 'md:grid-cols-2'}`}>
-                  {conversion.original_image_url && (
+                  {originalImageUrl && (
                     <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
                       <span className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                         {t('uploader.originalPhoto')}
                       </span>
                       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
                         <img
-                          src={conversion.original_image_url}
+                          src={originalImageUrl}
                           alt="Orijinal"
                           className="h-full w-full object-cover"
                         />
@@ -174,14 +178,14 @@ export default function HistoryDetailModal({ conversion, onClose }) {
                     </div>
                   )}
 
-                  {conversion.result_image_url && (
+                  {resultImageUrl && (
                     <div className="flex flex-col items-center rounded-2xl border border-gray-150 p-4 dark:border-white/10 dark:bg-navy-900/50">
                       <span className="mb-2 text-xs font-bold uppercase tracking-wider text-brand-500">
                         {t('result.aiCharacter')}
                       </span>
                       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-navy-900">
                         <img
-                          src={conversion.result_image_url}
+                          src={resultImageUrl}
                           alt="AI Karakteri"
                           className="h-full w-full object-cover"
                         />
@@ -242,7 +246,7 @@ export default function HistoryDetailModal({ conversion, onClose }) {
 
         {/* Modal Butonlar */}
         <div className="flex flex-wrap gap-3 border-t border-gray-100 bg-gray-50 p-6 dark:border-white/10 dark:bg-navy-900/30">
-          {conversion.result_image_url && (
+          {resultImageUrl && (
             <button
               type="button"
               onClick={handleDownloadImage}

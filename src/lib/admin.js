@@ -4,7 +4,7 @@
  * Supabase yapılandırılmışsa veritabanı ile, demo modda localStorage ile çalışır.
  */
 
-import { supabase, isSupabaseConfigured } from 'lib/supabase';
+import { supabase, isSupabaseConfigured, normalizeConversionUrls } from 'lib/supabase';
 import { TABLES } from 'lib/constants';
 import { THEMES } from 'lib/themes';
 
@@ -308,7 +308,7 @@ export async function fetchPublicConversionsAdmin() {
   const readLocal = () => {
     const list = readLocalJson('gameskinai_conversions', []);
     const publicMap = readLocalJson('gameskinai_public_map', {});
-    return list.filter((c) => c.is_public || publicMap[c.id]);
+    return list.filter((c) => c.is_public || publicMap[c.id]).map(normalizeConversionUrls);
   };
 
   if (!isSupabaseConfigured) {
@@ -323,7 +323,7 @@ export async function fetchPublicConversionsAdmin() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(normalizeConversionUrls);
   } catch (err) {
     console.warn('Moderasyon listesi çekilemedi, yerel veriler kullanılıyor:', err.message);
     return readLocal();

@@ -11,6 +11,7 @@ import { FaCube } from 'react-icons/fa';
 import Card from 'components/card';
 import { CONVERSION_STATUS } from 'lib/constants';
 import { parseConversionDescription } from 'lib/skinDataParser';
+import { normalizeStorageImageUrl } from 'lib/supabase';
 import { useTranslation } from 'contexts/TranslationContext';
 import { getGameLogo } from './GameLogos';
 
@@ -87,7 +88,9 @@ export default function HistoryCard({ conversion, onDelete, onView, onTogglePubl
       ? description.substring(0, 120) + '...'
       : description;
 
-  const displayImage = conversion.result_image_url || conversion.original_image_url;
+  const displayImage = normalizeStorageImageUrl(
+    conversion.result_image_url || conversion.original_image_url
+  );
 
   const handleDelete = async () => {
     if (isDeleting) return;

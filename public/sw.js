@@ -6,7 +6,7 @@
  *  - API istekleri (Supabase, Gemini vb.) asla cache'lenmez.
  */
 
-const CACHE_VERSION = 'gameskinai-v3';
+const CACHE_VERSION = 'gameskinai-v4';
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 

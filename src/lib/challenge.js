@@ -5,7 +5,7 @@
  * localStorage ile çalışır. Katılım = o haftanın temasıyla public dönüşüm.
  */
 
-import { supabase, isSupabaseConfigured } from 'lib/supabase';
+import { supabase, isSupabaseConfigured, normalizeConversionUrls } from 'lib/supabase';
 import { TABLES } from 'lib/constants';
 import { THEMES } from 'lib/themes';
 
@@ -159,7 +159,8 @@ export async function fetchChallengeEntries(challenge, limit = 20) {
         if (likeDiff !== 0) return likeDiff;
         return new Date(a.created_at) - new Date(b.created_at); // eşitlikte önce paylaşan
       })
-      .slice(0, limit);
+      .slice(0, limit)
+      .map(normalizeConversionUrls);
 
   if (!isSupabaseConfigured) {
     return sortEntries(readLocal());

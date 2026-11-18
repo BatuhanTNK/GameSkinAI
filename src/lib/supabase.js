@@ -58,6 +58,39 @@ export const supabase = createClient(
 export const isSupabaseConfigured = isConfigured;
 
 /**
+ * Süresi dolmuş Supabase Storage imzalı URL'lerini (/object/sign/)
+ * kalıcı public Storage URL'lerine (/object/public/) dönüştürür.
+ * @param {string} url
+ * @returns {string}
+ */
+export function normalizeStorageImageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (url.includes('/storage/v1/object/sign/')) {
+    return url
+      .replace('/storage/v1/object/sign/', '/storage/v1/object/public/')
+      .split('?')[0];
+  }
+  return url;
+}
+
+/**
+ * Dönüşüm kaydındaki görsel URL alanlarını kalıcı URL formatına normalize eder.
+ * @param {Object} item
+ * @returns {Object}
+ */
+export function normalizeConversionUrls(item) {
+  if (!item || typeof item !== 'object') return item;
+  const normalized = { ...item };
+  if (normalized.result_image_url !== undefined) {
+    normalized.result_image_url = normalizeStorageImageUrl(normalized.result_image_url);
+  }
+  if (normalized.original_image_url !== undefined) {
+    normalized.original_image_url = normalizeStorageImageUrl(normalized.original_image_url);
+  }
+  return normalized;
+}
+
+/**
  * Orijinal dosyayı Supabase Storage'a yükler.
  * Magic byte kontrolü ile güvenli uzantı belirler (Bulgu A6, A7).
  * 
@@ -94,13 +127,22 @@ export async function uploadImage(file, bucketName = 'conversions') {
     throw new Error(`Görsel Supabase Storage'a yüklenemedi: ${error.message}`);
   }
 
-  // Private bucket için erişilebilir bir bağlantı oluştur.
+  // Kalıcı erişim için public Storage URL'i tercih et.
+  const { data: publicData } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(filePath);
+
+  if (publicData?.publicUrl) {
+    return publicData.publicUrl;
+  }
+
+  // Fallback: publicUrl alınamazsa uzun süreli imzalı URL oluştur ve normalize et.
   const { data: signedData, error: signedError } = await supabase.storage
     .from(bucketName)
-    .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+    .createSignedUrl(filePath, 60 * 60 * 24 * 365);
 
   if (!signedError && signedData?.signedUrl) {
-    return signedData.signedUrl;
+    return normalizeStorageImageUrl(signedData.signedUrl);
   }
   throw new Error(`Görsel erişim bağlantısı oluşturulamadı: ${signedError?.message || 'Boş yanıt'}`);
 }

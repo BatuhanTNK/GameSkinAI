@@ -6,7 +6,14 @@ jest.mock('contexts/AuthContext', () => {
   const user = { id: '11111111-1111-4111-8111-111111111111', user_metadata: {} };
   return { useAuth: () => ({ user }) };
 });
-jest.mock('lib/supabase', () => ({ isSupabaseConfigured: true, supabase: { from: jest.fn() } }));
+jest.mock('lib/supabase', () => {
+  const actual = jest.requireActual('lib/supabase');
+  return {
+    isSupabaseConfigured: true,
+    supabase: { from: jest.fn() },
+    normalizeConversionUrls: actual.normalizeConversionUrls,
+  };
+});
 
 let query;
 beforeEach(() => {
@@ -39,4 +46,24 @@ test('successful database insert caches the real server ID', async () => {
   await act(async () => { await result.current.addConversion({ theme_slug: 'minecraft' }); });
   expect(result.current.conversions[0].id).toBe(record.id);
   expect(JSON.parse(localStorage.getItem('gameskinai_conversions'))[0].id).toBe(record.id);
+});
+
+test('fetchConversions normalizes expired signed URLs from database records', async () => {
+  const dbRows = [
+    {
+      id: 'row-1',
+      theme_slug: 'among-us',
+      result_image_url: 'https://test.supabase.co/storage/v1/object/sign/conversions/result.png?token=expired',
+      original_image_url: 'https://test.supabase.co/storage/v1/object/sign/conversions/orig.jpg?token=expired',
+    },
+  ];
+  query.order.mockResolvedValue({ data: dbRows, error: null });
+  const { result } = renderHook(() => useConversions());
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.conversions[0].result_image_url).toBe(
+    'https://test.supabase.co/storage/v1/object/public/conversions/result.png'
+  );
+  expect(result.current.conversions[0].original_image_url).toBe(
+    'https://test.supabase.co/storage/v1/object/public/conversions/orig.jpg'
+  );
 });

@@ -4,7 +4,7 @@
  * Demo modda (UUID olmayan kullanıcı id'leri) tüm işlemler yerel olarak saklanır.
  */
 
-import { supabase, isSupabaseConfigured } from 'lib/supabase';
+import { supabase, isSupabaseConfigured, normalizeConversionUrls } from 'lib/supabase';
 import { TABLES } from 'lib/constants';
 
 /**
@@ -90,7 +90,7 @@ export async function fetchUserPublicConversions(userId) {
     const publicMap = readLocalJson('gameskinai_public_map', {});
     return list
       .filter((c) => (c.user_id === userId || !c.user_id) && (c.is_public || publicMap[c.id]))
-      .map((c) => ({ ...c, original_image_url: null, is_public: true }));
+      .map((c) => normalizeConversionUrls({ ...c, original_image_url: null, is_public: true }));
   };
 
   if (!isSupabaseConfigured || !isValidUuid(userId)) {
@@ -106,7 +106,7 @@ export async function fetchUserPublicConversions(userId) {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(normalizeConversionUrls);
   } catch (err) {
     console.warn('Kullanıcı public dönüşümleri çekilemedi:', err.message);
     return readLocal();
